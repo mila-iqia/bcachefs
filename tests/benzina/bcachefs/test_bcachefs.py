@@ -20,6 +20,27 @@ def test___enter__():
         assert bchfs.size > 0
 
 
+def test___iter__():
+    assert os.path.exists("testdata/mini_bcachefs.img")
+    with BCacheFS("testdata/mini_bcachefs.img") as bchfs:
+        assert sorted([ent.name for ent in bchfs]) == \
+               ["dir",
+                "file1",
+                "file2",
+                "lost+found",
+                "n02033041",
+                "n02033041_3834.JPEG",
+                "n02445715",
+                "n02445715_16523.JPEG",
+                "n04467665",
+                "n04467665_63788.JPEG",
+                "n04584207",
+                "n04584207_7936.JPEG",
+                "n09332890",
+                "n09332890_29876.JPEG",
+                "subdir"]
+
+
 def test_find_dirent():
     assert os.path.exists("testdata/mini_bcachefs.img")
     with BCacheFS("testdata/mini_bcachefs.img") as bchfs:
@@ -58,15 +79,14 @@ def test_ls():
         assert ls == ["n04467665_63788.JPEG"]
 
 
-def test_read_file():
+def test_open_file():
     assert os.path.exists("testdata/mini_bcachefs.img")
-    with BCacheFS("testdata/mini_bcachefs.img") as bchfs, \
-            open(bchfs.path, "rb") as f:
+    with BCacheFS("testdata/mini_bcachefs.img") as bchfs:
         inode = bchfs.find_dirent("file1").inode
-        assert bchfs.read_file(f, inode).tobytes() == b"File content 1\n\0"
+        assert bchfs.open_file(inode).read() == b"File content 1\n\0"
         inode = bchfs.find_dirent("dir/subdir/file2").inode
-        assert bchfs.read_file(f, inode).tobytes() == b"File content 2\n\0"
-        assert bchfs.read_file(f, "dir/subdir/file2").tobytes() == \
+        assert bchfs.open_file(inode).read() == b"File content 2\n\0"
+        assert bchfs.open_file("dir/subdir/file2").read() == \
                b"File content 2\n\0"
 
 
@@ -90,28 +110,19 @@ def test_walk():
         assert dir_walk[1] == subdir_walk[0]
 
 
-def test_cursor___enter__():
+def test_cursor___iter__():
     assert os.path.exists("testdata/mini_bcachefs.img")
-    bchfs = BCacheFS("testdata/mini_bcachefs.img")
-    assert bchfs.closed
-    with Cursor(bchfs) as cursor:
-        assert not cursor.bchfs.closed
-    assert bchfs.closed
-    bchfs.open()
-    with Cursor(bchfs) as cursor:
-        assert not cursor.bchfs.closed
-    assert not bchfs.closed
-
-
-def test_cursor___init__():
-    assert os.path.exists("testdata/mini_bcachefs.img")
-    bchfs = BCacheFS("testdata/mini_bcachefs.img")
-    assert Cursor(bchfs).ls() == Cursor("testdata/mini_bcachefs.img").ls()
+    with BCacheFS("testdata/mini_bcachefs.img") as bchfs, \
+            BCacheFS("testdata/mini_bcachefs.img").cd() as cursor:
+        assert sorted([ent.name for ent in cursor]) == \
+               sorted([ent.name for ent in bchfs])
+        cursor.cd("dir")
+        assert sorted([ent.name for ent in cursor]) == ["file2",  "subdir"]
 
 
 def test_cursor_cd():
     assert os.path.exists("testdata/mini_bcachefs.img")
-    with Cursor("testdata/mini_bcachefs.img") as cursor:
+    with BCacheFS("testdata/mini_bcachefs.img").cd() as cursor:
         assert cursor.pwd == "/"
         cursor.cd("dir/subdir")
         assert cursor.pwd == "/dir/subdir"
@@ -123,22 +134,28 @@ def test_cursor_cd():
         assert cursor.pwd == "/"
 
 
+def test_cursor_find_dirent():
+    assert os.path.exists("testdata/mini_bcachefs.img")
+    with BCacheFS("testdata/mini_bcachefs.img") as bchfs, \
+            BCacheFS("testdata/mini_bcachefs.img").cd() as cursor:
+        cursor.cd("dir/subdir")
+        assert cursor.find_dirent("file2") == \
+               bchfs.find_dirent("dir/subdir/file2")
+
+
 def test_cursor_ls():
     assert os.path.exists("testdata/mini_bcachefs.img")
-    with Cursor("testdata/mini_bcachefs.img") as cursor:
-        assert cursor.ls() == cursor.bchfs.ls()
-        cursor.cd("dir")
-        assert cursor.pwd == "/dir"
-        assert cursor.ls() == cursor.bchfs.ls("dir")
-        cursor.cd("subdir")
-        assert cursor.ls() == cursor.bchfs.ls("dir/subdir")
+    with BCacheFS("testdata/mini_bcachefs.img") as bchfs, \
+            BCacheFS("testdata/mini_bcachefs.img").cd() as cursor:
+        cursor.cd("dir/subdir")
+        assert cursor.ls() == bchfs.ls("dir/subdir")
         cursor.cd()
-        assert cursor.ls() == cursor.bchfs.ls()
+        assert cursor.ls() == bchfs.ls()
 
 
 def test_cursor_walk():
     assert os.path.exists("testdata/mini_bcachefs.img")
-    with Cursor("testdata/mini_bcachefs.img") as cursor:
-        assert list(cursor.walk()) == list(cursor.bchfs.walk())
-        cursor.cd("dir/subdir")
-        assert list(cursor.walk()) == list(cursor.bchfs.walk("/dir/subdir"))
+    with BCacheFS("testdata/mini_bcachefs.img") as bchfs, \
+            BCacheFS("testdata/mini_bcachefs.img").cd() as cursor:
+        cursor.cd("dir")
+        assert list(cursor.walk("subdir")) == list(bchfs.walk("/dir/subdir"))

@@ -48,14 +48,13 @@ class BCacheFS:
     def __init__(self, path: str):
         self._path = path
         self._filesystem = _BCacheFS()
+        self._file: [io.RawIOBase] = None
         self._closed = True
+        self._pwd = '/'             # Used in Cursor
+        self._dirent = ROOT_DIRENT  # Used in Cursor
         self._extents_map = {}
         self._inodes_ls = {ROOT_DIRENT.inode: []}
         self._inodes_tree = {}
-
-    def __iter__(self):
-        self.open()
-        return BCacheFSIterDirEnt(self._filesystem)
 
     def __enter__(self):
         self.open()
@@ -63,6 +62,9 @@ class BCacheFS:
 
     def __exit__(self, _type, _value, _traceback):
         self.close()
+
+    def __iter__(self):
+        return (ent for ent in self._inodes_tree.values())
 
     @property
     def path(self) -> str:
@@ -76,38 +78,51 @@ class BCacheFS:
     def closed(self) -> bool:
         return self._closed
 
+    def cd(self, path: str = '/'):
+        cursor = Cursor(self.path, self._extents_map, self._inodes_ls,
+                        self._inodes_tree)
+        return cursor.cd(path)
+
     def open(self):
         if self._closed:
             self._filesystem.open(self._path)
+            self._file = open(self._path, "rb")
             self._closed = False
             self._parse()
 
     def close(self):
         if not self._closed:
             self._filesystem.close()
+            self._file.close()
+            self._file = None
             self._closed = True
 
-    def find_dirent(self, path: str = '/'):
-        parts = [p for p in path.split('/') if p] if path else None
-        dirent = ROOT_DIRENT
-        while parts:
-            dirent = self._inodes_tree.get((dirent.inode, parts.pop(0)), None)
-            if dirent is None:
-                break
+    def find_dirent(self, path: str = None):
+        if not path:
+            dirent = self._dirent
+        else:
+            parts = [p for p in path.split('/') if p]
+            dirent = self._dirent if not path.startswith("/") else ROOT_DIRENT
+            while parts:
+                dirent = self._inodes_tree.get((dirent.inode, parts.pop(0)),
+                                               None)
+                if dirent is None:
+                    break
         return dirent
 
-    def ls(self, path: [str, DirEnt] = '/'):
+    def ls(self, path: [str, DirEnt] = None):
         if isinstance(path, DirEnt):
             parent = path
+        elif not path:
+            parent = self._dirent
         else:
-            parent = self.find_dirent(path)
+            parent = self.find_dirent(os.path.join(self._pwd, path))
         if parent.is_dir:
             return self._inodes_ls[parent.inode]
         else:
             return [parent]
 
-    def read_file(self, fs: [typing.BinaryIO, io.RawIOBase],
-                  inode: [str, int]) -> np.array:
+    def open_file(self, inode: [str, int]) -> io.BytesIO:
         if isinstance(inode, str):
             inode = self.find_dirent(inode).inode
         extents = self._extents_map[inode]
@@ -116,15 +131,17 @@ class BCacheFS:
             file_size += extent.size
         _bytes = np.empty(file_size, dtype="<u1")
         for extent in extents:
-            fs.seek(extent.offset)
-            fs.readinto(_bytes[extent.file_offset:
-                               extent.file_offset+extent.size])
-        return _bytes
+            self._file.seek(extent.offset)
+            self._file.readinto(_bytes[extent.file_offset:
+                                       extent.file_offset+extent.size])
+        return io.BytesIO(_bytes)
 
-    def walk(self, top: str = '/', dirent: DirEnt = None):
-        if dirent and dirent.name == os.path.basename(top):
-            parent = dirent
+    def walk(self, top: str = None):
+        if not top:
+            top = self._pwd
+            parent = self._dirent
         else:
+            top = os.path.join(self._pwd, top)
             parent = self.find_dirent(top)
         if parent:
             return self._walk(top, parent)
@@ -144,43 +161,35 @@ class BCacheFS:
             self._extents_map[extent.inode].append(extent)
 
     def _walk(self, dirpath: str, dirent: DirEnt):
-        dirs = [de for de in self._inodes_ls[dirent.inode]
-                if de.is_dir]
-        files = [de for de in self._inodes_ls[dirent.inode]
-                 if not de.is_dir]
+        dirs = [ent for ent in self._inodes_ls[dirent.inode]
+                if ent.is_dir]
+        files = [ent for ent in self._inodes_ls[dirent.inode]
+                 if not ent.is_dir]
         yield dirpath, dirs, files
         for d in dirs:
             for _ in self._walk(os.path.join(dirpath, d.name), d):
                 yield _
 
 
-class Cursor:
-    def __init__(self, path: [str, BCacheFS]):
+class Cursor(BCacheFS):
+    def __init__(self, path: [str, BCacheFS], extents_map: dict,
+                 inodes_ls: dict, inodes_tree: dict):
         if isinstance(path, str):
-            self._bchfs: BCacheFS = BCacheFS(path)
+            super(Cursor, self).__init__(path)
         else:
-            self._bchfs: BCacheFS = path
+            path: BCacheFS
+            super(Cursor, self).__init__(path.path)
+        self._extents_map = extents_map
+        self._inodes_ls = inodes_ls
+        self._inodes_tree = inodes_tree
         self._is_owner = False
-        self._pwd = '/'
-        self._dirent = None
-        with self:
-            self._dirent = self._bchfs.find_dirent(self.pwd)
 
     def __iter__(self):
-        return iter(self._bchfs)
-
-    def __enter__(self):
-        self._is_owner = self._bchfs.closed
-        self._bchfs.open()
-        return self
-
-    def __exit__(self, _type, _value, _traceback):
-        if self._is_owner:
-            self._bchfs.close()
-
-    @property
-    def bchfs(self):
-        return self._bchfs
+        for _, dirs, files in self.walk():
+            for d in dirs:
+                yield d
+            for f in files:
+                yield f
 
     @property
     def pwd(self):
@@ -189,6 +198,7 @@ class Cursor:
     def cd(self, path: str = '/'):
         if not path:
             path = '/'
+            _path = path
         elif path.startswith(".."):
             pwd = self._pwd.split('/')
             path = path.split('/')
@@ -199,18 +209,16 @@ class Cursor:
             if not pwd:
                 pwd = '/'
             path = os.path.join(pwd, *path)
-        elif path[0] != '/':
-            path = os.path.join(self._pwd, path)
-        dirent = self._bchfs.find_dirent(path)
+            _path = path
+        else:
+            _path = os.path.join(self._pwd, path)
+        dirent = self.find_dirent(path)
         if dirent and dirent.is_dir:
-            self._pwd = path
+            self._pwd = _path
             self._dirent = dirent
-
-    def ls(self):
-        return self._bchfs.ls(self._dirent)
-
-    def walk(self):
-        return self._bchfs.walk(self._pwd, self._dirent)
+            return self
+        else:
+            return None
 
 
 class BCacheFSIter:
