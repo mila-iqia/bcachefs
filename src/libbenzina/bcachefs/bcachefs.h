@@ -111,7 +111,10 @@ typedef unsigned long long uint64_t;
     x(crc64,            2)          \
     x(crc128    ,       3)          \
     x(stripe_ptr,       4)
-#define BCH_EXTENT_ENTRY_MAX    5
+#define BCH_EXTENT_ENTRY_MAX        5
+
+#define KEY_FORMAT_LOCAL_BTREE      0
+#define KEY_FORMAT_CURRENT          1
 
 /*
  * Magic numbers
@@ -257,15 +260,12 @@ struct bch_sb {
     };
 } __attribute__((packed, aligned(8)));
 
-struct bkey_format {
-    uint8_t     key_u64s;
-    uint8_t     nr_fields;
-    /* One unused slot for now: */
-    uint8_t     bits_per_field[6];
-    uint64_t    field_offset[6];
-};
-
 /* Btree keys - all units are in sectors */
+
+struct bversion {
+    uint32_t        hi;
+    uint64_t        lo;
+} __attribute__((packed, aligned(4)));
 
 struct bpos {
     /*
@@ -281,11 +281,6 @@ struct bpos {
     uint64_t        inode;
 } __attribute__((packed, aligned(4)));
 
-#define KEY_INODE_MAX           ((uint64_t)~0ULL)
-#define KEY_OFFSET_MAX          ((uint64_t)~0ULL)
-#define KEY_SNAPSHOT_MAX        ((uint32_t)~0U)
-#define KEY_SIZE_MAX            ((uint32_t)~0U)
-
 static inline struct bpos SPOS(uint64_t inode, uint64_t offset, uint32_t snapshot)
 {
     return (struct bpos) {
@@ -295,20 +290,28 @@ static inline struct bpos SPOS(uint64_t inode, uint64_t offset, uint32_t snapsho
     };
 }
 
-#define POS_MIN             SPOS(0, 0, 0)
-#define POS_MAX             SPOS(KEY_INODE_MAX, KEY_OFFSET_MAX, 0)
-#define SPOS_MAX            SPOS(KEY_INODE_MAX, KEY_OFFSET_MAX, KEY_SNAPSHOT_MAX)
-#define POS(_inode, _offset)        SPOS(_inode, _offset, 0)
-
 /* Empty placeholder struct, for container_of() */
 struct bch_val {
     uint64_t        __nothing[0];
 };
 
-struct bversion {
-    uint32_t        hi;
-    uint64_t        lo;
-} __attribute__((packed, aligned(4)));
+struct bkey_format {
+    uint8_t     key_u64s;
+    uint8_t     nr_fields;
+    /* One unused slot for now: */
+    uint8_t     bits_per_field[6];
+    uint64_t    field_offset[6];
+};
+
+enum bch_bkey_fields {
+    BKEY_FIELD_INODE,
+    BKEY_FIELD_OFFSET,
+    BKEY_FIELD_SNAPSHOT,
+    BKEY_FIELD_SIZE,
+    BKEY_FIELD_VERSION_HI,
+    BKEY_FIELD_VERSION_LO,
+    BKEY_NR_FIELDS,
+};
 
 struct bkey_dirent {
     /* Size of combined key and value, in u64s */
@@ -374,9 +377,6 @@ struct bkey_packed {
      */
     uint8_t     pad[sizeof(struct bkey) - 3];
 } __attribute__((packed, aligned(8)));
-
-#define KEY_FORMAT_LOCAL_BTREE      0
-#define KEY_FORMAT_CURRENT      1
 
 /* bkey with inline value */
 struct bkey_i {
