@@ -95,7 +95,7 @@ const struct bset *benz_bch_next_bset(const struct btree_node *p, const struct b
     {
         if (c == NULL)
         {
-            c = (const void*)((const uint8_t*)p + sizeof(*p));
+            c = &p->keys;
         }
         else
         {
