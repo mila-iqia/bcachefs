@@ -292,4 +292,3 @@ PyMODINIT_FUNC PyInit_c_bcachefs(void)
 
     return module;
 }
-

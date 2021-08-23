@@ -3,7 +3,6 @@
 from dataclasses import dataclass
 import io
 import os
-import typing
 
 import numpy as np
 
