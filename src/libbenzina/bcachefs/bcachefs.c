@@ -63,17 +63,21 @@ const struct jset_entry *benz_bch_next_jset_entry(const struct bch_sb_field *p,
     return c;
 }
 
+const struct bch_val *benz_bch_first_bch_val(const struct bkey *p, uint8_t key_u64s)
+{
+    const struct bch_val *p_end = (const void*)((const uint8_t*)p + p->u64s * BCH_U64S_SIZE);
+    const struct bch_val *c = (const void*)((const uint8_t*)p + key_u64s * BCH_U64S_SIZE);
+    if (c >= p_end)
+    {
+        c = NULL;
+    }
+    return c;
+}
+
 const struct bch_val *benz_bch_next_bch_val(const struct bkey *p, const struct bch_val *c, uint32_t sizeof_c)
 {
     const struct bch_val *p_end = (const void*)((const uint8_t*)p + p->u64s * BCH_U64S_SIZE);
-    if (c == NULL)
-    {
-        c = (const void*)((const uint8_t*)p + sizeof(*p));
-    }
-    else
-    {
-        c = (const void*)((const uint8_t*)c + sizeof_c);
-    }
+    c = (const void*)((const uint8_t*)c + sizeof_c);
     if (c >= p_end)
     {
         c = NULL;
@@ -95,7 +99,7 @@ const struct bset *benz_bch_next_bset(const struct btree_node *p, const struct b
     {
         if (c == NULL)
         {
-            c = (const void*)((const uint8_t*)p + sizeof(*p));
+            c = &p->keys;
         }
         else
         {
@@ -126,33 +130,114 @@ const struct bkey *benz_bch_next_bkey(const struct bset *p, const struct bkey *c
     return c;
 }
 
-const struct bkey_dirent *benz_bch_next_bkey_dirent(const struct bset *p, const struct bkey_dirent *c, uint64_t p_inode)
+const struct bkey_short *benz_bch_next_bkey_short(const struct bset *p, const struct bkey_short *c, enum bch_bkey_type type)
+{
+    return (const void*)benz_bch_next_bkey(p, (const void*)c, type);
+}
+
+const struct bch_val *benz_bch_next_bch_val_in_bkey_short(const struct bkey_short *p, const struct bch_val *c, uint32_t sizeof_c)
+{
+    const struct bch_val *p_end = (const void*)((const uint8_t*)p + p->u64s * BCH_U64S_SIZE);
+    if (c == NULL)
+    {
+        c = (const void*)((const uint8_t*)p + sizeof(*p));
+    }
+    else
+    {
+        c = (const void*)((const uint8_t*)c + sizeof_c);
+    }
+    if (c >= p_end)
+    {
+        c = NULL;
+    }
+    return c;
+}
+
+struct bkey_local benz_bch_parse_bkey(const struct bkey *bkey, const struct bkey_format *format)
+{
+    struct bkey_local ret = {.u64s = bkey->u64s,
+                             .format = bkey->format,
+                             .needs_whiteout = bkey->needs_whiteout,
+                             .type = bkey->type};
+    if (bkey->format == KEY_FORMAT_LOCAL_BTREE &&
+            memcmp(format, &BKEY_FORMAT_SHORT, sizeof(struct bkey_format)) == 0)
+    {
+        const struct bkey_short *bkey_short = (const void*)bkey;
+        ret.p = bkey_short->p;
+        ret.key_u64s = format->key_u64s;
+    }
+    else if (bkey->format == KEY_FORMAT_LOCAL_BTREE &&
+             // Does not support field_offset yet
+             memcmp(format->field_offset, (uint64_t[6]){0}, sizeof(format->field_offset)) == 0)
+    {
+        const uint8_t *bytes = (const void*)bkey;
+        bytes += format->key_u64s * BCH_U64S_SIZE;
+        for (int i = 0; i < BKEY_NR_FIELDS ; ++i)
+        {
+            if (format->bits_per_field[i] == 0)
+            {
+                continue;
+            }
+            bytes -= format->bits_per_field[i] / 8;
+            uint64_t value = benz_any_uint_as_uint64(bytes, format->bits_per_field[i]);
+            switch (i) {
+            case BKEY_FIELD_INODE:
+                ret.p.inode = value;
+                break;
+            case BKEY_FIELD_OFFSET:
+                ret.p.offset = value;
+                break;
+            case BKEY_FIELD_SNAPSHOT:
+                ret.p.snapshot = (uint32_t)value;
+                break;
+            case BKEY_FIELD_SIZE:
+                ret.size = (uint32_t)value;
+                break;
+            case BKEY_FIELD_VERSION_HI:
+                ret.version.hi = (uint32_t)value;
+                break;
+            case BKEY_FIELD_VERSION_LO:
+                ret.version.lo = value;
+                break;
+            }
+        }
+        ret.key_u64s = format->key_u64s;
+    }
+    else if (bkey->format == KEY_FORMAT_CURRENT)
+    {
+        memcpy(&ret, bkey, sizeof(*bkey));
+        ret.key_u64s = BKEY_U64s;
+    }
+    return ret;
+}
+
+const struct bkey_short *benz_bch_next_bkey_dirent(const struct bset *p, const struct bkey_short *c, uint64_t p_inode)
 {
     do
     {
-        c = (const void*)benz_bch_next_bkey(p, (const void*)c, KEY_TYPE_dirent);
+        c = benz_bch_next_bkey_short(p, c, KEY_TYPE_dirent);
     } while (c && p_inode != 0 && c->p.inode != p_inode);
     return c;
 }
 
-const struct bkey_dirent *benz_bch_parent_bkey_dirent(const struct bset *bset, const struct bkey_dirent *bkey_dirent)
+const struct bkey_short *benz_bch_parent_bkey_dirent(const struct bset *bset, const struct bkey_short *bkey_short)
 {
-    uint64_t parent_inode = bkey_dirent->p.inode;
-    bkey_dirent = (const void*)benz_bch_next_bkey(bset, NULL, KEY_TYPE_dirent);
+    uint64_t parent_inode = bkey_short->p.inode;
+    bkey_short = (const void*)benz_bch_next_bkey(bset, NULL, KEY_TYPE_dirent);
     const struct bch_dirent *bch_dirent = NULL;
-    while (bkey_dirent)
+    while (bkey_short)
     {
-        bch_dirent = benz_bch_dirent(bkey_dirent);
+        bch_dirent = benz_bch_dirent(bkey_short);
         if (bch_dirent->d_inum == parent_inode)
         {
             break;
         }
-        bkey_dirent = benz_bch_next_bkey_dirent(bset, bkey_dirent, 0);
+        bkey_short = benz_bch_next_bkey_dirent(bset, bkey_short, 0);
     }
-    return bkey_dirent;
+    return bkey_short;
 }
 
-const struct bch_dirent *benz_bch_dirent(const struct bkey_dirent *p)
+const struct bch_dirent *benz_bch_dirent(const struct bkey_short *p)
 {
     return (const void*)((const uint8_t*)p + sizeof(*p));
 }
@@ -188,16 +273,16 @@ inline uint64_t benz_bch_get_extent_offset(const struct bch_extent_ptr *bch_exte
 
 const struct bch_dirent *benz_bch_find_dirent_by_name(const struct bset *bset, uint64_t p_inode, const char* name)
 {
-    const struct bkey_dirent *bkey_dirent = benz_bch_next_bkey_dirent(bset, NULL, p_inode);
+    const struct bkey_short *bkey_short = benz_bch_next_bkey_dirent(bset, NULL, p_inode);
     const struct bch_dirent *bch_dirent = NULL;
-    while (bkey_dirent)
+    while (bkey_short)
     {
-        bch_dirent = benz_bch_dirent(bkey_dirent);
+        bch_dirent = benz_bch_dirent(bkey_short);
         if (strcmp((const char*)bch_dirent->d_name, name) == 0)
         {
             break;
         }
-        bkey_dirent = benz_bch_next_bkey_dirent(bset, bkey_dirent, p_inode);
+        bkey_short = benz_bch_next_bkey_dirent(bset, bkey_short, p_inode);
         bch_dirent = NULL;
     }
     return bch_dirent;
@@ -239,28 +324,31 @@ uint64_t benz_bch_find_inode(const struct bset *bset, const char* path)
     return inode;
 }
 
-char *benz_bch_strcpy_file_full_path(char *buffer_end, const struct bset *bset, const struct bkey_dirent *bkey_dirent)
+char *benz_bch_strcpy_file_full_path(char *buffer_end, const struct bset *bset, const struct bkey_short *bkey_short)
 {
-    const struct bch_dirent* bch_dirent = NULL;
+    const struct bch_dirent *bch_dirent = NULL;
     --buffer_end;
     do
     {
         char last_path_first = buffer_end[0];
-        bch_dirent = benz_bch_dirent(bkey_dirent);
+        bch_dirent = benz_bch_dirent(bkey_short);
         uint64_t name_len = strlen((const char*)bch_dirent->d_name);
         buffer_end -= name_len;
         strcpy(buffer_end, (const char*)bch_dirent->d_name);
         (buffer_end + name_len)[0] = last_path_first;
         --buffer_end;
         buffer_end[0] = '/';
-        bkey_dirent = benz_bch_parent_bkey_dirent(bset, bkey_dirent);
-    } while (bkey_dirent);
+        bkey_short = benz_bch_parent_bkey_dirent(bset, bkey_short);
+    } while (bkey_short);
     return buffer_end;
 }
 
-const struct bkey * benz_bch_file_offset_size(const struct bkey *bkey, uint64_t *file_offset, uint64_t *offset, uint64_t *size)
+const struct bkey *benz_bch_file_offset_size(const struct bkey *bkey,
+                                             const struct bch_val *bch_val,
+                                             uint64_t *file_offset,
+                                             uint64_t *offset,
+                                             uint64_t *size)
 {
-    const struct bch_val *bch_val = benz_bch_next_bch_val(bkey, NULL, 0);
     if (bch_val && bkey->type == KEY_TYPE_extent)
     {
         *file_offset = (bkey->p.offset - bkey->size) * BCH_SECTOR_SIZE;
@@ -269,9 +357,9 @@ const struct bkey * benz_bch_file_offset_size(const struct bkey *bkey, uint64_t 
     }
     else if (bch_val && bkey->type == KEY_TYPE_inline_data)
     {
-        *file_offset = 0;
+        *file_offset = (bkey->p.offset - bkey->size) * BCH_SECTOR_SIZE;
         *offset = 0;
-        *size = bkey->u64s * BCH_U64S_SIZE - (uint64_t)((const uint8_t*)bch_val - (const uint8_t*)bkey);
+        *size = bkey->u64s * BCH_U64S_SIZE;
     }
     else
     {
@@ -280,6 +368,7 @@ const struct bkey * benz_bch_file_offset_size(const struct bkey *bkey, uint64_t 
     return bkey;
 }
 
+// Probably doesn't work with custom keys
 const struct bkey *benz_bch_next_file_offset_size(const struct bset *p,
                                                   const struct bkey *c,
                                                   uint64_t inode,
@@ -304,20 +393,15 @@ const struct bkey *benz_bch_next_file_offset_size(const struct bset *p,
     }
     if (c)
     {
-        c = benz_bch_file_offset_size(c, file_offset, offset, size);
+        const struct bch_val *bch_val = benz_bch_first_bch_val(c, BKEY_U64s);
+        c = benz_bch_file_offset_size(c, bch_val, file_offset, offset, size);
     }
     return c;
 }
 
-uint64_t benz_bch_inline_data_offset(const struct btree_node* start, const struct bkey *bkey, uint64_t start_offset)
+uint64_t benz_bch_inline_data_offset(const struct btree_node* start, const struct bch_val *bch_val, uint64_t start_offset)
 {
-    uint64_t offset = 0;
-    if (bkey && bkey->type == KEY_TYPE_inline_data)
-    {
-        const struct bch_val *bch_val = benz_bch_next_bch_val(bkey, NULL, 0);
-        offset = (uint64_t)((const uint8_t*)bch_val - (const uint8_t*)start) + start_offset;
-    }
-    return offset;
+    return (uint64_t)((const uint8_t*)bch_val - (const uint8_t*)start) + start_offset;
 }
 
 struct bch_sb *benz_bch_realloc_sb(struct bch_sb *sb, uint64_t size)
@@ -374,10 +458,9 @@ uint64_t benz_bch_fread_file(uint8_t *ptr, const struct bset* bset, uint64_t ino
     const struct bkey *bkey = benz_bch_next_file_offset_size(bset, NULL, inode, &file_offset, &frag_offset, &frag_size);
     while (bkey)
     {
-        printf("i:%llu, fo:%llu, o:%llu, s:%llu\n", inode, file_offset, frag_offset, frag_size);
         if (bkey->type == KEY_TYPE_inline_data)
         {
-            const struct bch_val *bch_val = benz_bch_next_bch_val(bkey, NULL, 0);
+            const struct bch_val *bch_val = benz_bch_first_bch_val(bkey, BKEY_U64s);
             memcpy(ptr + file_size, bch_val, frag_size);
             file_size += frag_size;
         }
@@ -399,6 +482,21 @@ inline uint64_t benz_get_flag_bits(const uint64_t bitfield, uint8_t first_bit, u
     return bitfield << (sizeof(bitfield) * 8 - last_bit) >> (sizeof(bitfield) * 8 - last_bit + first_bit);
 }
 
+uint64_t benz_any_uint_as_uint64(const uint8_t *bytes, uint8_t sizeof_uint)
+{
+    switch (sizeof_uint) {
+    case 64:
+        return *(const uint64_t*)(const void*)bytes;
+    case 32:
+        return *(const uint32_t*)(const void*)bytes;
+    case 16:
+        return *(const uint16_t*)(const void*)bytes;
+    case 8:
+        return *(const uint8_t*)bytes;
+    }
+    return (uint64_t)-1;
+}
+
 void print_chars(const uint8_t* bytes, uint64_t len)
 {
     for (uint64_t i = 0; i < len; ++i)
@@ -410,16 +508,15 @@ void print_chars(const uint8_t* bytes, uint64_t len)
 void print_bytes(const uint8_t* bytes, uint64_t len)
 {
     for (uint64_t i = 0; i < len; ++i) {
-        print_hex(bytes + i, 1);
-        printf(" ");
-        if ((i + 1) % 8 == 0)
+        if (i && i % 4 == 0)
         {
             printf(" ");
         }
-        if ((i + 1) % 32 == 0)
+        if (i && i % 32 == 0)
         {
             printf("\n");
         }
+        print_hex(bytes + i, 1);
     }
 }
 
@@ -469,18 +566,15 @@ void print_uuid(const struct uuid *uuid) {
 
 int BCacheFS_fini(BCacheFS *this)
 {
-    printf("BCacheFS_fini\n");
-    int ret = BCacheFS_close(this);
-    if (this->sb)
-    {
-        free(this->sb);
-        this->sb = NULL;
-    }
-    return ret && this->sb == NULL;
+    return BCacheFS_close(this);
 }
 
 int BCacheFS_open(BCacheFS *this, const char *path)
 {
+    if (!BCacheFS_close(this))
+    {
+        return 0;
+    }
     int ret = 0;
     this->fp = fopen(path, "rb");
     this->sb = benz_bch_realloc_sb(NULL, 0);
@@ -489,7 +583,6 @@ int BCacheFS_open(BCacheFS *this, const char *path)
         fseek(this->fp, 0L, SEEK_END);
         this->size = ftell(this->fp);
         fseek(this->fp, 0L, SEEK_SET);
-        this->sb = benz_bch_realloc_sb(NULL, 0);
     }
     if (this->sb && benz_bch_fread_sb(this->sb, 0, this->fp))
     {
@@ -510,77 +603,175 @@ int BCacheFS_close(BCacheFS *this)
         this->fp = NULL;
         this->size = 0;
     }
-    return this->fp == NULL;
+    if (this->sb)
+    {
+        free(this->sb);
+        this->sb = NULL;
+    }
+    return this->fp == NULL && this->sb == NULL;
 }
 
 int BCacheFS_iter(const BCacheFS *this, BCacheFS_iterator *iter, enum btree_id type)
 {
     iter->type = type;
-    iter->jset_entry = BCacheFS_iter_next_jset_entry(this, iter);
     iter->btree_node = benz_bch_malloc_btree_node(this->sb);
-    return iter->jset_entry && iter->btree_node;
+    iter->jset_entry = BCacheFS_iter_next_jset_entry(this, iter);
+    iter->btree_ptr = BCacheFS_iter_next_btree_ptr(this, iter);
+    if (iter->btree_ptr && !benz_bch_fread_btree_node(iter->btree_node,
+                                                      this->sb,
+                                                      iter->btree_ptr->start,
+                                                      this->fp))
+    {
+        iter->btree_ptr = NULL;
+    }
+    return iter->jset_entry && iter->btree_node && iter->btree_ptr;
+}
+
+int BCacheFS_next_iter(const BCacheFS *this, BCacheFS_iterator *iter, const struct bch_btree_ptr_v2 *btree_ptr)
+{
+    BCacheFS_iterator *next_it = malloc(sizeof(BCacheFS_iterator));
+    *next_it = (BCacheFS_iterator){
+        .type = iter->type,
+        .btree_node = benz_bch_malloc_btree_node(this->sb),
+        .btree_ptr = btree_ptr
+    };
+    if (next_it->btree_ptr && !benz_bch_fread_btree_node(next_it->btree_node,
+                                                         this->sb,
+                                                         next_it->btree_ptr->start,
+                                                         this->fp))
+    {
+        next_it->btree_ptr = NULL;
+    }
+    if (next_it->btree_node && next_it->btree_ptr)
+    {
+        iter->next_it = next_it;
+        return 1;
+    }
+    else
+    {
+        BCacheFS_iter_fini(this, next_it);
+        free(next_it);
+        next_it = NULL;
+        return 0;
+    }
 }
 
 int BCacheFS_iter_fini(const BCacheFS *this, BCacheFS_iterator *iter)
 {
-    printf("BCacheFS_iter_fini\n");
     (void)this;
-    iter->type = BTREE_ID_NR;
-    iter->jset_entry = NULL;
-    iter->btree_ptr = NULL;
+    if (iter == NULL)
+    {
+        return 1;
+    }
+    if (iter->next_it && BCacheFS_iter_fini(this, iter->next_it))
+    {
+        free(iter->next_it);
+        iter->next_it = NULL;
+    }
     if (iter->btree_node)
     {
         free(iter->btree_node);
         iter->btree_node = NULL;
     }
-    iter->bset = NULL;
-    return iter->jset_entry == NULL && iter->btree_ptr == NULL &&
-            iter->btree_node == NULL && iter->bset == NULL;
+    *iter = (BCacheFS_iterator){
+        .type = BTREE_ID_NR,
+        .btree_node = iter->btree_node,
+        .next_it = iter->next_it
+    };
+    return iter->next_it == NULL && iter->btree_node == NULL;
+}
+
+const struct bch_val *_BCacheFS_iter_next_bch_val(const struct bkey *bkey, const struct bkey_format* format)
+{
+    uint8_t key_u64s = 0;
+    if (bkey == NULL)
+    {
+        return NULL;
+    }
+    if (bkey->format == KEY_FORMAT_LOCAL_BTREE)
+    {
+        key_u64s = format->key_u64s;
+    }
+    else
+    {
+        key_u64s = BKEY_U64s;
+    }
+    return benz_bch_first_bch_val(bkey, key_u64s);
 }
 
 const struct bch_val *BCacheFS_iter_next(const BCacheFS *this, BCacheFS_iterator *iter)
 {
-    (void)this;
     const struct bkey *bkey = NULL;
-    const struct bkey_dirent *bkey_dirent = NULL;
-    if (iter->btree_ptr == NULL && iter->jset_entry)
+    const struct bch_val *bch_val = NULL;
+    // Wind to current iterator
+    if (iter->next_it)
     {
-        iter->btree_ptr = BCacheFS_iter_next_btree_ptr(this, iter);
-        if (iter->btree_ptr && !benz_bch_fread_btree_node(iter->btree_node,
-                                                          this->sb,
-                                                          iter->btree_ptr->start,
-                                                          this->fp))
+        bch_val = BCacheFS_iter_next(this, iter->next_it);
+        if (bch_val)
         {
-            iter->btree_ptr = NULL;
+            return bch_val;
+        }
+        else
+        {
+            BCacheFS_iter_fini(this, iter->next_it);
+            free(iter->next_it);
+            iter->next_it = NULL;
         }
     }
-    if (iter->bset == NULL && iter->jset_entry && iter->btree_ptr)
+//    if (iter->btree_ptr == NULL && iter->jset_entry)
+//    {
+//        iter->btree_ptr = BCacheFS_iter_next_btree_ptr(this, iter);
+//        if (iter->btree_ptr && !benz_bch_fread_btree_node(iter->btree_node,
+//                                                          this->sb,
+//                                                          iter->btree_ptr->start,
+//                                                          this->fp))
+//        {
+//            iter->btree_ptr = NULL;
+//        }
+//    }
+    if (iter->bset == NULL && /*iter->jset_entry &&*/ iter->btree_ptr)
     {
         iter->bset = BCacheFS_iter_next_bset(this, iter);
     }
-    if (iter->jset_entry && iter->btree_ptr && iter->bset) {}
+    if (/*iter->jset_entry &&*/ iter->btree_ptr && iter->bset) {}
     else
     {
         return NULL;
     }
+    do
+    {
+        iter->bkey = benz_bch_next_bkey(iter->bset, iter->bkey, KEY_TYPE_MAX);
+        bch_val = _BCacheFS_iter_next_bch_val(iter->bkey, &iter->btree_node->format);
+    } while (iter->bkey && bch_val == NULL);
+    bkey = iter->bkey;
     switch ((int)iter->type)
     {
-        case BTREE_ID_extents:
-        iter->bkey = benz_bch_next_bkey(iter->bset, iter->bkey, KEY_TYPE_MAX);
-        if (iter->bkey)
+    case BTREE_ID_extents:
+        iter->bch_val = bch_val;
+        if (bch_val && bkey->type == KEY_TYPE_btree_ptr_v2 &&
+                BCacheFS_next_iter(this, iter, (const struct bch_btree_ptr_v2*)bch_val))
         {
-            bkey = iter->bkey;
-            return benz_bch_next_bch_val(iter->bkey, NULL, 0);
+            return BCacheFS_iter_next(this, iter);
+        }
+        else if (bch_val)
+        {
+            return bch_val;
         }
         break;
-        case BTREE_ID_dirents:
-        iter->bkey = benz_bch_next_bkey_dirent(iter->bset, iter->bkey, 0);
-        if (iter->bkey)
+    case BTREE_ID_dirents:
+        iter->bch_val = bch_val;
+        if (bch_val && bkey->type == KEY_TYPE_btree_ptr_v2 &&
+                BCacheFS_next_iter(this, iter, (const struct bch_btree_ptr_v2*)bch_val))
         {
-            bkey_dirent = iter->bkey;
-            return (const void*)benz_bch_dirent(bkey_dirent);
+            return BCacheFS_iter_next(this, iter);
+        }
+        else if (bch_val)
+        {
+            return bch_val;
         }
         break;
+    default:
+        return NULL;
     }
     if (iter->bkey == NULL)
     {
@@ -588,19 +779,19 @@ const struct bch_val *BCacheFS_iter_next(const BCacheFS *this, BCacheFS_iterator
     }
     if (iter->bset == NULL)
     {
-        iter->btree_ptr = BCacheFS_iter_next_btree_ptr(this, iter);
-        if (iter->btree_ptr && !benz_bch_fread_btree_node(iter->btree_node,
-                                                          this->sb,
-                                                          iter->btree_ptr->start,
-                                                          this->fp))
-        {
+//        iter->btree_ptr = BCacheFS_iter_next_btree_ptr(this, iter);
+//        if (iter->btree_ptr && !benz_bch_fread_btree_node(iter->btree_node,
+//                                                          this->sb,
+//                                                          iter->btree_ptr->start,
+//                                                          this->fp))
+//        {
             iter->btree_ptr = NULL;
-        }
+//        }
     }
-    if (iter->btree_ptr == NULL)
-    {
-        iter->jset_entry = BCacheFS_iter_next_jset_entry(this, iter);
-    }
+//    if (iter->btree_ptr == NULL)
+//    {
+//        iter->jset_entry = BCacheFS_iter_next_jset_entry(this, iter);
+//    }
     return BCacheFS_iter_next(this, iter);
 }
 
@@ -628,10 +819,17 @@ const struct bch_btree_ptr_v2 *BCacheFS_iter_next_btree_ptr(const BCacheFS *this
     (void)this;
     const struct jset_entry *jset_entry = iter->jset_entry;
     const struct bch_btree_ptr_v2 *btree_ptr = iter->btree_ptr;
-    const struct bch_val *bch_val = benz_bch_next_bch_val(&jset_entry->start->k,
-                                                          (const void*)btree_ptr,
-                                                          sizeof(struct bch_btree_ptr_v2));
-    btree_ptr = (const void*)bch_val;
+    if (btree_ptr)
+    {
+        btree_ptr = (const void*)benz_bch_next_bch_val(&jset_entry->start->k,
+                                                       (const void*)btree_ptr,
+                                                       sizeof(struct bch_btree_ptr_v2));
+    }
+    else
+    {
+        btree_ptr = (const void*)benz_bch_first_bch_val(&jset_entry->start->k, BKEY_U64s);
+    }
+    const struct bch_val *bch_val = (const void*)btree_ptr;
     for (; bch_val && btree_ptr->start->unused;
          bch_val = benz_bch_next_bch_val(&jset_entry->start->k,
                                          bch_val,
@@ -650,18 +848,33 @@ const struct bset *BCacheFS_iter_next_bset(const BCacheFS *this, BCacheFS_iterat
 BCacheFS_extent BCacheFS_iter_make_extent(const BCacheFS *this, BCacheFS_iterator *iter)
 {
     (void)this;
-    const struct bkey *bkey = iter->bkey;
+    while (iter->next_it)
+    {
+        iter = iter->next_it;
+    }
+    const struct bkey_local bkey_local = benz_bch_parse_bkey(iter->bkey, &iter->btree_node->format);
+    const struct bkey *bkey = (const void*)&bkey_local;
     BCacheFS_extent extent = {.inode = bkey->p.inode};
-    benz_bch_file_offset_size(bkey, &extent.file_offset, &extent.offset, &extent.size);
+    benz_bch_file_offset_size(bkey, iter->bch_val, &extent.file_offset, &extent.offset, &extent.size);
+    if (bkey->type == KEY_TYPE_inline_data)
+    {
+        extent.offset = benz_bch_inline_data_offset(iter->btree_node, iter->bch_val,
+                                                    benz_bch_get_extent_offset(iter->btree_ptr->start));
+        extent.size -= (uint64_t)((const uint8_t*)iter->bch_val - (const uint8_t*)iter->bkey);
+    }
     return extent;
 }
 
 BCacheFS_dirent BCacheFS_iter_make_dirent(const BCacheFS *this, BCacheFS_iterator *iter)
 {
     (void)this;
-    const struct bkey_dirent *bkey_dirent = iter->bkey;
-    const struct bch_dirent* bch_dirent = benz_bch_dirent(bkey_dirent);
-    return (BCacheFS_dirent){.parent_inode = bkey_dirent->p.inode,
+    while (iter->next_it)
+    {
+        iter = iter->next_it;
+    }
+    const struct bkey_local bkey_local = benz_bch_parse_bkey(iter->bkey, &iter->btree_node->format);
+    const struct bch_dirent *bch_dirent = (const void*)iter->bch_val;
+    return (BCacheFS_dirent){.parent_inode = bkey_local.p.inode,
                                   .inode = bch_dirent->d_inum,
                                   .type = bch_dirent->d_type,
                                   .name = bch_dirent->d_name};

@@ -3,7 +3,6 @@
 from dataclasses import dataclass
 import io
 import os
-import typing
 
 import numpy as np
 
@@ -47,7 +46,8 @@ ROOT_DIRENT = DirEnt(0, 4096, DIR_TYPE, '/')
 class BCacheFS:
     def __init__(self, path: str):
         self._path = path
-        self._filesystem = _BCacheFS()
+        self._filesystem = None
+        self._size = 0
         self._file: [io.RawIOBase] = None
         self._closed = True
         self._pwd = '/'             # Used in Cursor
@@ -72,7 +72,7 @@ class BCacheFS:
 
     @property
     def size(self) -> int:
-        return self._filesystem.size
+        return self._size
 
     @property
     def closed(self) -> bool:
@@ -85,7 +85,9 @@ class BCacheFS:
 
     def open(self):
         if self._closed:
+            self._filesystem = _BCacheFS()
             self._filesystem.open(self._path)
+            self._size = self._filesystem.size
             self._file = open(self._path, "rb")
             self._closed = False
             self._parse()
@@ -93,6 +95,8 @@ class BCacheFS:
     def close(self):
         if not self._closed:
             self._filesystem.close()
+            self._filesystem = None
+            self._size = 0
             self._file.close()
             self._file = None
             self._closed = True
@@ -153,12 +157,15 @@ class BCacheFS:
         for dirent in BCacheFSIterDirEnt(self._filesystem):
             self._inodes_ls[dirent.parent_inode].append(dirent)
             if dirent.is_dir:
-                self._inodes_ls[dirent.inode] = []
+                self._inodes_ls.setdefault(dirent.inode, [])
             self._inodes_tree[(dirent.parent_inode, dirent.name)] = dirent
 
         for extent in BCacheFSIterExtent(self._filesystem):
             self._extents_map.setdefault(extent.inode, [])
             self._extents_map[extent.inode].append(extent)
+
+        for parent_inode, ls in self._inodes_ls.items():
+            self._inodes_ls[parent_inode] = self._unique_dirent_list(ls)
 
     def _walk(self, dirpath: str, dirent: DirEnt):
         dirs = [ent for ent in self._inodes_ls[dirent.inode]
@@ -169,6 +176,10 @@ class BCacheFS:
         for d in dirs:
             for _ in self._walk(os.path.join(dirpath, d.name), d):
                 yield _
+
+    @staticmethod
+    def _unique_dirent_list(dirent_ls):
+        return list({ent.inode: ent for ent in dirent_ls}.values())
 
 
 class Cursor(BCacheFS):

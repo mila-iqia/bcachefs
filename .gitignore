@@ -24,7 +24,10 @@ tags
 .directory
 *.debug
 Makefile*
+CMakeFiles/
+CMakeCache.txt
 CMakeLists.txt.user
+cmake_install.cmake
 *.prl
 *.app
 moc_*.cpp
@@ -207,3 +210,4 @@ dmypy.json
 /env/
 /tmp/
 /venv/
+*.out

@@ -187,19 +187,13 @@ static PyObject *PyBCacheFS_iterator_next(PyBCacheFS_iterator *self)
     PyTupleObject *ret = (PyTupleObject*)Py_None;
     const BCacheFS *fs = &self->_pyfs->_fs;
     BCacheFS_iterator *iter = &self->_iter;
-    const struct bkey *bkey = NULL;
     const struct bch_val *bch_val = BCacheFS_iter_next(fs, iter);
-    bkey = iter->bkey;
-    if (bch_val && (bkey->type == KEY_TYPE_extent || bkey->type == KEY_TYPE_inline_data))
+    if (bch_val && iter->type == BTREE_ID_extents)
     {
         BCacheFS_extent extent = BCacheFS_iter_make_extent(fs, iter);
-        if (bkey->type == KEY_TYPE_inline_data)
-        {
-            extent.offset = benz_bch_inline_data_offset(iter->btree_node, bkey, benz_bch_get_extent_offset(iter->btree_ptr->start));
-        }
         ret = (PyTupleObject*)Py_BuildValue("KKKK", extent.inode, extent.file_offset, extent.offset, extent.size);
     }
-    else if (bch_val && bkey->type == KEY_TYPE_dirent)
+    else if (bch_val && iter->type == BTREE_ID_dirents)
     {
         BCacheFS_dirent dirent = BCacheFS_iter_make_dirent(fs, iter);
         ret = (PyTupleObject*)Py_BuildValue("KKIU", dirent.parent_inode, dirent.inode, (uint32_t)dirent.type, dirent.name);
@@ -292,4 +286,3 @@ PyMODINIT_FUNC PyInit_c_bcachefs(void)
 
     return module;
 }
-
