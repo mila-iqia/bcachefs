@@ -21,12 +21,10 @@ typedef signed char int8_t;
 typedef signed short int16_t;
 typedef signed int int32_t;
 typedef __int64_t int64_t;
-// typedef signed long long int64_t;
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
 typedef unsigned int uint32_t;
 typedef __uint64_t uint64_t;
-// typedef unsigned long long uint64_t;
 
 #define BCH_SB_SECTOR           8
 #define BCH_SB_LABEL_SIZE       32
@@ -707,56 +705,28 @@ const struct jset_entry *benz_bch_next_jset_entry(const struct bch_sb_field *p,
                                                   enum bch_jset_entry_type type);
 const struct bch_val *benz_bch_first_bch_val(const struct bkey *p, uint8_t key_u64s);
 const struct bch_val *benz_bch_next_bch_val(const struct bkey *p, const struct bch_val *c, uint32_t sizeof_c);
-const struct btree_node *benz_bch_btree_node(const void *ptr, const struct bch_extent_ptr *bch_extent_ptr);
 const struct bset *benz_bch_next_bset(const struct btree_node *p, const struct bset *c, const struct bch_sb *sb);
 const struct bkey *benz_bch_next_bkey(const struct bset *p, const struct bkey *c, enum bch_bkey_type type);
-const struct bkey_short *benz_bch_next_bkey_short(const struct bset *p, const struct bkey_short *c, enum bch_bkey_type type);
-const struct bch_val *benz_bch_next_bch_val_in_bkey_short(const struct bkey_short *p, const struct bch_val *c, uint32_t sizeof_c);
 
 struct bkey_local benz_bch_parse_bkey(const struct bkey *bkey, const struct bkey_format *format);
-
-const struct bkey_short *benz_bch_next_bkey_dirent(const struct bset *p, const struct bkey_short *c, uint64_t p_inode);
-const struct bkey_short *benz_bch_parent_bkey_dirent(const struct bset *bset, const struct bkey_short *bkey_short);
-const struct bch_dirent *benz_bch_dirent(const struct bkey_short *p);
 
 uint64_t benz_bch_get_sb_size(const struct bch_sb *sb);
 uint64_t benz_bch_get_block_size(const struct bch_sb *sb);
 uint64_t benz_bch_get_btree_node_size(const struct bch_sb *sb);
 uint64_t benz_bch_get_extent_offset(const struct bch_extent_ptr *bch_extent_ptr);
 
-const struct bch_dirent *benz_bch_find_dirent_by_name(const struct bset *bset, uint64_t p_inode, const char* name);
-uint64_t benz_bch_find_inode(const struct bset *bset, const char* path);
-char *benz_bch_strcpy_file_full_path(char *buffer_end, const struct bset *bset, const struct bkey_short *bkey_short);
 const struct bkey *benz_bch_file_offset_size(const struct bkey *bkey,
                                              const struct bch_val *bch_val,
                                              uint64_t *file_offset,
                                              uint64_t *offset,
                                              uint64_t *size);
-const struct bkey *benz_bch_next_file_offset_size(const struct bset *p,
-                                                  const struct bkey *c,
-                                                  uint64_t inode,
-                                                  uint64_t *file_offset,
-                                                  uint64_t *offset,
-                                                  uint64_t *size);
 uint64_t benz_bch_inline_data_offset(const struct btree_node* start, const struct bch_val *bch_val, uint64_t start_offset);
 
 struct bch_sb *benz_bch_realloc_sb(struct bch_sb *sb, uint64_t size);
 struct btree_node *benz_bch_malloc_btree_node(const struct bch_sb *sb);
-uint8_t *benz_bch_malloc_file(const struct bset* bset, uint64_t inode);
 
 uint64_t benz_bch_fread_sb(struct bch_sb *sb, uint64_t size, FILE *fp);
 uint64_t benz_bch_fread_btree_node(struct btree_node *btree_node, const struct bch_sb *sb, const struct bch_extent_ptr *bch_extent_ptr, FILE *fp);
-uint64_t benz_bch_fread_file(uint8_t *ptr, const struct bset* bset, uint64_t inode, FILE *fp);
-
-uint64_t benz_get_flag_bits(const uint64_t bitfield, uint8_t first_bit, uint8_t last_bit);
-
-uint64_t benz_any_uint_as_uint64(const uint8_t *bytes, uint8_t sizeof_uint);
-
-void print_chars(const uint8_t *bytes, uint64_t len);
-void print_bytes(const uint8_t *bytes, uint64_t len);
-void print_bits(uint64_t bitfield);
-void print_hex(const uint8_t *hex, uint64_t len);
-void print_uuid(const struct uuid *uuid);
 
 typedef struct {
     FILE *fp;
@@ -801,6 +771,16 @@ const struct bch_btree_ptr_v2 *BCacheFS_iter_next_btree_ptr(const BCacheFS *this
 const struct bset *BCacheFS_iter_next_bset(const BCacheFS *this, BCacheFS_iterator *iter);
 BCacheFS_dirent BCacheFS_iter_make_dirent(const BCacheFS *this, BCacheFS_iterator *iter);
 BCacheFS_extent BCacheFS_iter_make_extent(const BCacheFS *this, BCacheFS_iterator *iter);
+
+uint64_t benz_get_flag_bits(const uint64_t bitfield, uint8_t first_bit, uint8_t last_bit);
+
+uint64_t benz_uintXX_as_uint64(const uint8_t *bytes, uint8_t sizeof_uint);
+
+void benz_print_chars(const uint8_t *bytes, uint64_t len);
+void benz_print_bytes(const uint8_t *bytes, uint64_t len);
+void benz_print_bits(uint64_t bitfield);
+void benz_print_hex(const uint8_t *hex, uint64_t len);
+void benz_print_uuid(const struct uuid *uuid);
 
 /* End Extern "C" and Include Guard */
 #ifdef __cplusplus
