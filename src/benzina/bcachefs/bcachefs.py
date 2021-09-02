@@ -126,7 +126,7 @@ class BCacheFS:
         else:
             return [parent]
 
-    def open_file(self, inode: [str, int]) -> io.BytesIO:
+    def read_file(self, inode: [str, int]) -> memoryview:
         if isinstance(inode, str):
             inode = self.find_dirent(inode).inode
         extents = self._extents_map[inode]
@@ -138,7 +138,7 @@ class BCacheFS:
             self._file.seek(extent.offset)
             self._file.readinto(_bytes[extent.file_offset:
                                        extent.file_offset+extent.size])
-        return io.BytesIO(_bytes)
+        return _bytes.data
 
     def walk(self, top: str = None):
         if not top:

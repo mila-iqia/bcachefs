@@ -83,10 +83,10 @@ def test_open_file():
     assert os.path.exists("testdata/mini_bcachefs.img")
     with BCacheFS("testdata/mini_bcachefs.img") as fs:
         inode = fs.find_dirent("file1").inode
-        assert fs.open_file(inode).read() == b"File content 1\n\0"
+        assert fs.read_file(inode) == b"File content 1\n\0"
         inode = fs.find_dirent("dir/subdir/file2").inode
-        assert fs.open_file(inode).read() == b"File content 2\n\0"
-        assert fs.open_file("dir/subdir/file2").read() == \
+        assert fs.read_file(inode) == b"File content 2\n\0"
+        assert fs.read_file("dir/subdir/file2") == \
                b"File content 2\n\0"
 
 
