@@ -1,8 +1,8 @@
 # This Python file uses the following encoding: utf-8
 
-from dataclasses import dataclass
 import io
 import os
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -41,6 +41,7 @@ class DirEnt:
 
 
 ROOT_DIRENT = DirEnt(0, 4096, DIR_TYPE, '/')
+LOSTFOUND_DIRENT = DirEnt(4096, 4097, DIR_TYPE, "lost+found")
 
 
 class BCacheFS:
@@ -101,7 +102,7 @@ class BCacheFS:
             self._file = None
             self._closed = True
 
-    def find_dirent(self, path: str = None):
+    def find_dirent(self, path: str = None) -> DirEnt:
         if not path:
             dirent = self._dirent
         else:
