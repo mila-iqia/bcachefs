@@ -1,7 +1,7 @@
 import os
 
-import benzina.bcachefs.bcachefs as bchfs
-from benzina.bcachefs import BCacheFS
+import bcachefs.bcachefs as bchfs
+from bcachefs import BCacheFS
 
 
 def test___enter__():

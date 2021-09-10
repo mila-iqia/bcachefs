@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "src/libbenzina/bcachefs/bcachefs.h"
+#include "bcachefs/bcachefs.h"
 
 int main()
 {

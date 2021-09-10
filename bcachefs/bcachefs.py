@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from benzina.c_bcachefs import PyBCacheFS as _BCacheFS, \
+from bcachefs.c_bcachefs import PyBCacheFS as _BCacheFS, \
     PyBCacheFS_iterator as _BCacheFS_iterator
 
 EXTENT_TYPE = 0
