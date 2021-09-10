@@ -10,10 +10,10 @@ bcachefs_module = Extension(
 
 setup(
     name="bcachefs",
-    version="0.1.1",
+    version="0.1.2",
     author="Satya Ortiz-Gagné",
     url="",
-    packages=find_packages("bcachefs"),
+    packages=find_packages(),
     install_requires=["numpy"],
     tests_require=["pytest"],
     ext_modules=[bcachefs_module]
