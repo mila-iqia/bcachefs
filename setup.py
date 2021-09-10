@@ -2,19 +2,18 @@
 from setuptools import Extension, find_packages, setup
 
 bcachefs_module = Extension(
-    name="benzina.c_bcachefs",
-    sources=["src/libbenzina/bcachefs/bcachefs.c",
-             "src/benzina/bcachefs/bcachefsmodule.c"],
-    include_dirs=["src/"]
+    name="bcachefs.c_bcachefs",
+    sources=["bcachefs/bcachefs.c",
+             "bcachefs/bcachefsmodule.c"],
+    include_dirs=["bcachefs/"]
 )
 
 setup(
-    name="benzcachefs",
-    version="0.1.0",
+    name="bcachefs",
+    version="0.1.1",
     author="Satya Ortiz-Gagné",
     url="",
-    packages=find_packages("src"),
-    package_dir={"": "src"},
+    packages=find_packages("bcachefs"),
     install_requires=["numpy"],
     tests_require=["pytest"],
     ext_modules=[bcachefs_module]
