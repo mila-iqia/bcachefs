@@ -150,7 +150,10 @@ struct bkey_local benz_bch_parse_bkey(const struct bkey *bkey, const struct bkey
                 continue;
             }
             bytes -= format->bits_per_field[i] / 8;
-            value += benz_uintXX_as_uint64(bytes, format->bits_per_field[i]);
+            if (format->bits_per_field[i])
+            {
+                value += benz_uintXX_as_uint64(bytes, format->bits_per_field[i]);
+            }
             switch (i)
             {
             case BKEY_FIELD_INODE:
