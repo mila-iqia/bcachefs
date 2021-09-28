@@ -13,7 +13,8 @@ const void *benz_bch_next_sibling(const void *p, uint32_t sizeof_p, const void *
     else
     {
         uint64_t u64s = 0;
-        switch (u64s_spec.size) {
+        switch (u64s_spec.size)
+        {
         case sizeof(uint8_t):
             u64s = *((const uint8_t*)c);
             break;
@@ -58,7 +59,7 @@ const struct jset_entry *benz_bch_next_jset_entry(const struct bch_sb_field *p,
     do
     {
         c = (const struct jset_entry*)benz_bch_next_sibling(p, sizeof_p, p_end, c, U64S_JSET_ENTRY);
-    } while (c && type != BCH_SB_FIELD_NR && c->type != type);
+    } while (c && type != BCH_JSET_ENTRY_NR && c->type != type);
     return c;
 }
 
@@ -137,21 +138,21 @@ struct bkey_local benz_bch_parse_bkey(const struct bkey *bkey, const struct bkey
         ret.p = bkey_short->p;
         ret.key_u64s = format->key_u64s;
     }
-    else if (bkey->format == KEY_FORMAT_LOCAL_BTREE &&
-             // Does not support field_offset yet
-             memcmp(format->field_offset, (uint64_t[6]){0}, sizeof(format->field_offset)) == 0)
+    else if (bkey->format == KEY_FORMAT_LOCAL_BTREE)
     {
         const uint8_t *bytes = (const void*)bkey;
         bytes += format->key_u64s * BCH_U64S_SIZE;
         for (int i = 0; i < BKEY_NR_FIELDS ; ++i)
         {
-            if (format->bits_per_field[i] == 0)
+            uint64_t value = format->field_offset[i];
+            if (value + format->bits_per_field[i] == 0)
             {
                 continue;
             }
             bytes -= format->bits_per_field[i] / 8;
-            uint64_t value = benz_uintXX_as_uint64(bytes, format->bits_per_field[i]);
-            switch (i) {
+            value += benz_uintXX_as_uint64(bytes, format->bits_per_field[i]);
+            switch (i)
+            {
             case BKEY_FIELD_INODE:
                 ret.p.inode = value;
                 break;
@@ -579,7 +580,8 @@ inline uint64_t benz_get_flag_bits(const uint64_t bitfield, uint8_t first_bit, u
 
 uint64_t benz_uintXX_as_uint64(const uint8_t *bytes, uint8_t sizeof_uint)
 {
-    switch (sizeof_uint) {
+    switch (sizeof_uint)
+    {
     case 64:
         return *(const uint64_t*)(const void*)bytes;
     case 32:
@@ -602,7 +604,8 @@ void benz_print_chars(const uint8_t* bytes, uint64_t len)
 
 void benz_print_bytes(const uint8_t* bytes, uint64_t len)
 {
-    for (uint64_t i = 0; i < len; ++i) {
+    for (uint64_t i = 0; i < len; ++i)
+    {
         if (i && i % 4 == 0)
         {
             printf(" ");
@@ -636,13 +639,16 @@ void benz_print_bits(uint64_t bitfield)
     }
 }
 
-void benz_print_hex(const uint8_t *hex, uint64_t len) {
-    for (uint64_t i = 0; i < len; ++i) {
+void benz_print_hex(const uint8_t *hex, uint64_t len)
+{
+    for (uint64_t i = 0; i < len; ++i)
+    {
         printf("%02x", hex[i]);
     }
 }
 
-void benz_print_uuid(const struct uuid *uuid) {
+void benz_print_uuid(const struct uuid *uuid)
+{
     unsigned int i = 0;
     benz_print_hex(&uuid->bytes[i], 4);
     i+=4;
