@@ -4,6 +4,6 @@ project(benzcachefs LANGUAGES C)
 
 include_directories(bcachefs/)
 
-add_executable(benzcachefs main.c
+add_executable(bcachefs.out main.c
     bcachefs/bcachefs.c
 )
