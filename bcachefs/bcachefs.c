@@ -177,12 +177,12 @@ const struct bset *benz_bch_next_bset(const struct btree_node *p, const struct b
         }
         else
         {
-	    // We want to find the next bset which is located at the next
-	    // block_size from the beginning of parent. It is possible for
-	    // `(uint64_t)p % block_size == 0` to always be true but in case it
-	    // could not be, reposition _cb to be relative to the beginning of
-	    // p when looking for the next block_size location, then move back
-	    // to the correct location in RAM
+            // We want to find the next bset which is located at the next
+            // block_size from the beginning of parent. It is possible for
+            // `(uint64_t)p % block_size == 0` to always be true but in case it
+            // could not be, reposition _cb to be relative to the beginning of
+            // p when looking for the next block_size location, then move back
+            // to the correct location in RAM
             const uint8_t *_cb = (const uint8_t*)c;
             _cb -= (uint64_t)p;
 
@@ -212,7 +212,7 @@ const struct bkey *benz_bch_next_bkey(const struct bset *p, const struct bkey *c
     const uint8_t *p_end = (const uint8_t*)p + p->u64s * BCH_U64S_SIZE;
     do
     {
-	// with the proposed change to benz_bch_next_sibling we would have
+        // with the proposed change to benz_bch_next_sibling we would have
         //
         // maybe we can have function for `begin` `end`
         //
@@ -552,8 +552,8 @@ const struct bch_val *BCacheFS_iter_next(const BCacheFS *this, BCacheFS_iterator
     // Wind to current iterator
     if (iter->next_it)
     {
-	// FIXME: this is O(d) with d the depth if the list is in reverse we
-	// could simply use next_it
+        // FIXME: this is O(d) with d the depth if the list is in reverse we
+        // could simply use next_it
         bch_val = BCacheFS_iter_next(this, iter->next_it);
         if (bch_val)
         {
