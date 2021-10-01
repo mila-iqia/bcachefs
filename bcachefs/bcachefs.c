@@ -4,10 +4,38 @@
 
 #include "bcachefs.h"
 
+// Our data structure structs are really just header of contiguous lists.
+// The header always start with the size of full list in bytes
+//
+// The elements are starting after the header struct, they can have different size, 
+// their size is also stored in the first few bytes of the element
+// u64s can have different sizes (uint8_t to uint64_t),
+// to know the number of bytes used to store the size we need to use the `struct u64s_spec`
+//
+//  * struct header {
+//  |  u64s                // Size of the entire data structure
+//  |  metadata
+//  |       .
+//  |       .
+//  |       .
+//  |  metadata   };       //  
+//  | *  struct Value {
+//  | |   u64s              // Size of this value
+//  | +> };      
+//  | *  struct Value {
+//  | |   u64s              // Size of this value
+//  | +> };  
+//  +>                      // End of data structure    
+//
+//  end         = &header + header->u64s;
+//  first_value = &header + sizeof(header);
 
-// reads the u64s field contained inside a struct (assume it is the first field)
+
+// Reads the u64s field contained inside a struct (assume it is the first field)
 // note that fields like `uint64_t _data[0];` do not contribute to the struct size and create a pointer
 // to the begining of the struct.
+//
+// TODO: duplicate with benz_uintXX_as_uint64
 uint64_t read_u64s(const void *c, struct u64s_spec u64s_spec) {
     uint64_t u64s = 0;
     switch (u64s_spec.size)
@@ -30,11 +58,27 @@ uint64_t read_u64s(const void *c, struct u64s_spec u64s_spec) {
     return u64s;
 }
 
-// our data structure struct are really just header of contiguous lists.
-// the header always start with the size of full list in bytes
-// the elements are starting after the header struct
-// the elements can have different size, their size is also stored in the first few bytes of the element
-// to know the number of bytes used to store the size we need to use the `struct u64s_spec`
+// Gets next element, reads the size of the current element and jump to the next one
+//
+// if current element is null, set it to the first element
+// if current element is higher than the end returns null
+//
+// p            : start of our data structure
+// size_of_p    : size of the header of our data structure
+// p_end        : end of the elements              
+// c            : current element
+// u64s_spec    : number of bytes used to store the element size
+//
+// NOTE: benz_bch_next_sibling is called 3 times and everytime p_end is p + p->u64s * BCH_U64S_SIZE
+//
+// we could simplify this function as
+//  
+//  benz_bch_next_sibling(const void* start, const void* end, const void* elem, u64s_spec u64s_spec);
+//
+// with:
+//  start = p + sizeof(p)
+//  end = p + p->u64s * BCH_U64S_SIZE
+//
 const void *benz_bch_next_sibling(const void *p, uint32_t sizeof_p, const void *p_end, const void *c, struct u64s_spec u64s_spec)
 {
     if (c == NULL)
@@ -72,6 +116,10 @@ const struct bch_sb_field *benz_bch_next_sb_field(const struct bch_sb *p, const 
 
 // Iterate through journal set entries looking for a specific field type
 // if type == BCH_JSET_ENTRY_NR then next entry is retruned
+//
+// TODO: sizeof_p is always sizeof(struct bch_sb_field_clean)
+// we could simplify this function by removing its argument
+// or/and change p type to `bch_sb_field_clean`
 const struct jset_entry *benz_bch_next_jset_entry(const struct bch_sb_field *p,
                                                   uint32_t sizeof_p,
                                                   const struct jset_entry *c,
@@ -86,6 +134,7 @@ const struct jset_entry *benz_bch_next_jset_entry(const struct bch_sb_field *p,
 }
 
 // Returns the first value held by a bkey
+//
 const struct bch_val *benz_bch_first_bch_val(const struct bkey *p, uint8_t key_u64s)
 {
     const struct bch_val *p_end = (const void*)((const uint8_t*)p + p->u64s * BCH_U64S_SIZE);
@@ -98,7 +147,11 @@ const struct bch_val *benz_bch_first_bch_val(const struct bkey *p, uint8_t key_u
     return c;
 }
 
-// Returns the subsequent value held by a bkey
+// This is actually returning next btree pointer when we already have one
+// 
+// p       : is our initial journal entry
+// c       : is our btree_ptr
+// sizeof_c: is the size of struct bch_btree_ptr_v2
 const struct bch_val *benz_bch_next_bch_val(const struct bkey *p, const struct bch_val *c, uint32_t sizeof_c)
 {
     const struct bch_val *p_end = (const void*)((const uint8_t*)p + p->u64s * BCH_U64S_SIZE);
@@ -156,6 +209,22 @@ const struct bkey *benz_bch_next_bkey(const struct bset *p, const struct bkey *c
     const uint8_t *p_end = (const uint8_t*)p + p->u64s * BCH_U64S_SIZE;
     do
     {
+        // with the proposed change to benz_bch_next_sibling
+        // we would have
+        //
+        // maybe we can have function for `begin` `end`
+        //
+        //  uint8_t const* benz_bch_array_start(uint8_t const*, uint64_t size) { return p + sizeof(*p); } 
+        //  uint8_t const* benz_bch_array_end(uint8_t const*, uint64_t size) { return p + size * BCH_U64S_SIZE; } 
+        //
+        //  auto start = benz_bch_array_start(p, sizeof(*p));
+        //  auto end = benz_bch_array_end(p, p->p->u64s);
+        //  
+        //  do {
+        //      c = benz_bch_next_sibling(start, end, c, U64S_BKEY);
+        //  } while ...
+        //
+
         c = (const struct bkey*)benz_bch_next_sibling(p, sizeof(*p), p_end, c, U64S_BKEY);
     } while (c && type != KEY_TYPE_MAX && c->type != type);
     return c;
@@ -390,11 +459,16 @@ int BCacheFS_iter(const BCacheFS *this, BCacheFS_iterator *iter, enum btree_id t
 int BCacheFS_next_iter(const BCacheFS *this, BCacheFS_iterator *iter, const struct bch_btree_ptr_v2 *btree_ptr)
 {
     BCacheFS_iterator *next_it = malloc(sizeof(BCacheFS_iterator));
+    
+    // to reverse this we need iter to always be the top level iterator
+    // 
     *next_it = (BCacheFS_iterator){
         .type = iter->type,
         .btree_node = benz_bch_malloc_btree_node(this->sb),
         .btree_ptr = btree_ptr
     };
+
+
     if (next_it->btree_ptr && !benz_bch_fread_btree_node(next_it->btree_node,
                                                          this->sb,
                                                          next_it->btree_ptr->start,
@@ -402,13 +476,20 @@ int BCacheFS_next_iter(const BCacheFS *this, BCacheFS_iterator *iter, const stru
     {
         next_it->btree_ptr = NULL;
     }
+
     if (next_it->btree_node && next_it->btree_ptr)
     {
+        // next_it->next_it = iter->next_it
+        // iter->next_it = next_it;
         iter->next_it = next_it;
         return 1;
     }
     else
     {
+        // todelete = iter->next_it
+        // iter->next = todelete->next_it;
+        // BCacheFS_iter_fini(todelete);
+        // free(todelete);
         BCacheFS_iter_fini(this, next_it);
         free(next_it);
         next_it = NULL;
@@ -463,9 +544,16 @@ const struct bch_val *BCacheFS_iter_next(const BCacheFS *this, BCacheFS_iterator
 {
     const struct bkey *bkey = NULL;
     const struct bch_val *bch_val = NULL;
+
+    // if next_it is a reverse list we only need to do this once
+    // then fetch the key, if the key is null
+    // delete current next_it and check next one in the stack
+
     // Wind to current iterator
     if (iter->next_it)
     {
+        // FIXME: this is O(d) with d the depth
+        // if the list is in reverse we could simply use next_it
         bch_val = BCacheFS_iter_next(this, iter->next_it);
         if (bch_val)
         {
@@ -473,6 +561,10 @@ const struct bch_val *BCacheFS_iter_next(const BCacheFS *this, BCacheFS_iterator
         }
         else
         {
+            // todelete = iter->next_it
+            // iter->next = todelete->next_it;
+            // BCacheFS_iter_fini(todelete);
+            // free(todelete);
             BCacheFS_iter_fini(this, iter->next_it);
             free(iter->next_it);
             iter->next_it = NULL;
@@ -587,10 +679,14 @@ const struct bset *BCacheFS_iter_next_bset(const BCacheFS *this, BCacheFS_iterat
 BCacheFS_extent BCacheFS_iter_make_extent(const BCacheFS *this, BCacheFS_iterator *iter)
 {
     (void)this;
+
+    // TODO: this is O(d) with d the depth
+    // if the list is in reverse we could simply use next_it
     while (iter->next_it)
     {
         iter = iter->next_it;
     }
+
     const struct bkey_local bkey_local = benz_bch_parse_bkey(iter->bkey, &iter->btree_node->format);
     const struct bkey *bkey = (const void*)&bkey_local;
     BCacheFS_extent extent = {.inode = bkey->p.inode};
@@ -607,6 +703,9 @@ BCacheFS_extent BCacheFS_iter_make_extent(const BCacheFS *this, BCacheFS_iterato
 BCacheFS_dirent BCacheFS_iter_make_dirent(const BCacheFS *this, BCacheFS_iterator *iter)
 {
     (void)this;
+
+    // this is O(d) with d the depth
+    // if the list is in reverse we could simply use next_it
     while (iter->next_it)
     {
         iter = iter->next_it;
