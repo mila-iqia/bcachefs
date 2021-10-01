@@ -1,11 +1,12 @@
 # setup.py
 from setuptools import Extension, find_packages, setup
 
+
 bcachefs_module = Extension(
     name="bcachefs.c_bcachefs",
     sources=["bcachefs/bcachefs.c",
              "bcachefs/bcachefsmodule.c"],
-    include_dirs=["bcachefs/"]
+    include_dirs=["bcachefs/"],
 )
 
 setup(
@@ -15,6 +16,6 @@ setup(
     url="",
     packages=find_packages(),
     install_requires=["numpy"],
-    tests_require=["pytest"],
+    tests_require=["pytest", "gcovr"],
     ext_modules=[bcachefs_module]
 )
