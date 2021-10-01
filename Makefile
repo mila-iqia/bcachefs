@@ -6,5 +6,5 @@ coverage:
 	./build/bcachefs_tests testdata/mini_bcachefs.img
 	mv *.gcda *.gcno build/coverage/ 
 	gcovr -r . -e tests build/coverage/
-	gcovr -r . -e tests build/coverage/ --html -o build/coverage/report.html
+	gcovr -r . -e tests build/coverage/ --html-details -o build/coverage/report.html
 
