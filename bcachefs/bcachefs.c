@@ -4,35 +4,53 @@
 
 #include "bcachefs.h"
 
+
+// reads the u64s field contained inside a struct (assume it is the first field)
+// note that fields like `uint64_t _data[0];` do not contribute to the struct size and create a pointer
+// to the begining of the struct.
+uint64_t read_u64s(const void *c, struct u64s_spec u64s_spec) {
+    uint64_t u64s = 0;
+    switch (u64s_spec.size)
+    {
+    case sizeof(uint8_t):
+        u64s = *((const uint8_t*)c);
+        break;
+    case sizeof(uint16_t):
+        u64s = *((const uint16_t*)c);
+        break;
+    case sizeof(uint32_t):
+        u64s = *((const uint32_t*)c);
+        break;
+    case sizeof(uint64_t):
+        u64s = *((const uint64_t*)c);
+        break;
+    default:
+        u64s = 0;
+    }
+    return u64s;
+}
+
+// our data structure struct are really just header of contiguous lists.
+// the header always start with the size of full list in bytes
+// the elements are starting after the header struct
+// the elements can have different size, their size is also stored in the first few bytes of the element
+// to know the number of bytes used to store the size we need to use the `struct u64s_spec`
 const void *benz_bch_next_sibling(const void *p, uint32_t sizeof_p, const void *p_end, const void *c, struct u64s_spec u64s_spec)
 {
     if (c == NULL)
     {
+        // if null fetch first element which is right after the header
         c = (const uint8_t*)p + sizeof_p;
     }
     else
     {
-        uint64_t u64s = 0;
-        switch (u64s_spec.size)
-        {
-        case sizeof(uint8_t):
-            u64s = *((const uint8_t*)c);
-            break;
-        case sizeof(uint16_t):
-            u64s = *((const uint16_t*)c);
-            break;
-        case sizeof(uint32_t):
-            u64s = *((const uint32_t*)c);
-            break;
-        case sizeof(uint64_t):
-            u64s = *((const uint64_t*)c);
-            break;
-        default:
-            u64s = 0;
-        }
-        u64s += u64s_spec.start;
+        // fetch next element by reading the size of current element and jumping to the
+        // next one
+        uint64_t u64s = read_u64s(c, u64s_spec) + u64s_spec.start;
         c = (const uint8_t*)c + u64s * BCH_U64S_SIZE;
     }
+
+    // if we reached the end simply return null
     if (c >= p_end)
     {
         c = NULL;
@@ -40,6 +58,8 @@ const void *benz_bch_next_sibling(const void *p, uint32_t sizeof_p, const void *
     return c;
 }
 
+// Iterate through superblock field looking for a specific field type
+// if type == BCH_SB_FIELD_NR then next field is returned
 const struct bch_sb_field *benz_bch_next_sb_field(const struct bch_sb *p, const struct bch_sb_field *c, enum bch_sb_field_type type)
 {
     const uint8_t *p_end = (const uint8_t*)p + p->u64s * BCH_U64S_SIZE;
@@ -50,6 +70,8 @@ const struct bch_sb_field *benz_bch_next_sb_field(const struct bch_sb *p, const 
     return c;
 }
 
+// Iterate through journal set entries looking for a specific field type
+// if type == BCH_JSET_ENTRY_NR then next entry is retruned
 const struct jset_entry *benz_bch_next_jset_entry(const struct bch_sb_field *p,
                                                   uint32_t sizeof_p,
                                                   const struct jset_entry *c,
@@ -63,10 +85,12 @@ const struct jset_entry *benz_bch_next_jset_entry(const struct bch_sb_field *p,
     return c;
 }
 
+// Returns the first value held by a bkey
 const struct bch_val *benz_bch_first_bch_val(const struct bkey *p, uint8_t key_u64s)
 {
     const struct bch_val *p_end = (const void*)((const uint8_t*)p + p->u64s * BCH_U64S_SIZE);
     const struct bch_val *c = (const void*)((const uint8_t*)p + key_u64s * BCH_U64S_SIZE);
+
     if (c >= p_end)
     {
         c = NULL;
@@ -74,6 +98,7 @@ const struct bch_val *benz_bch_first_bch_val(const struct bkey *p, uint8_t key_u
     return c;
 }
 
+// Returns the subsequent value held by a bkey
 const struct bch_val *benz_bch_next_bch_val(const struct bkey *p, const struct bch_val *c, uint32_t sizeof_c)
 {
     const struct bch_val *p_end = (const void*)((const uint8_t*)p + p->u64s * BCH_U64S_SIZE);
@@ -85,6 +110,7 @@ const struct bch_val *benz_bch_next_bch_val(const struct bkey *p, const struct b
     return c;
 }
 
+// fetch next valid bset
 const struct bset *benz_bch_next_bset(const struct btree_node *p, const struct bset *c, const struct bch_sb *sb)
 {
     uint64_t btree_node_size = benz_bch_get_btree_node_size(sb);
@@ -98,12 +124,20 @@ const struct bset *benz_bch_next_bset(const struct btree_node *p, const struct b
         }
         else
         {
+            // On cherche à trouver le prochain bset qui se trouve au prochain block_size à partir du parent.
+            // Il est possible que (uint64_t)p % block_size == 0 mais dans le cas où ce ne serait pas le cas, 
+            // je repositionne p/r à p avant de déplacer au prochain block_size puis je déplace le pointeur au bon endroit dans la RAM
             const uint8_t *_cb = (const uint8_t*)c;
             _cb -= (uint64_t)p;
+
+            // next bset
             _cb += sizeof(*c) + c->u64s * BCH_U64S_SIZE;
+
+            // bset starts at a blocksize
             _cb += block_size - (uint64_t)_cb % block_size +
                    // skip btree_node_entry csum
                    sizeof(struct bch_csum);
+
             _cb += (uint64_t)p;
             c = (const void*)_cb;
         }
@@ -115,6 +149,8 @@ const struct bset *benz_bch_next_bset(const struct btree_node *p, const struct b
     return c;
 }
 
+// Iterate through bkeys inside a bset looking for a specific key type
+// if type == KEY_TYPE_MAX then next key is retruned
 const struct bkey *benz_bch_next_bkey(const struct bset *p, const struct bkey *c, enum bch_bkey_type type)
 {
     const uint8_t *p_end = (const uint8_t*)p + p->u64s * BCH_U64S_SIZE;
@@ -186,20 +222,6 @@ struct bkey_local benz_bch_parse_bkey(const struct bkey *bkey, const struct bkey
     return ret;
 }
 
-uint64_t benz_bch_get_sb_size(const struct bch_sb *sb)
-{
-    uint64_t size = 0;
-    if (sb == NULL)
-    {
-        size = sizeof(struct bch_sb);
-    }
-    else if (memcmp(&sb->magic, &BCACHE_MAGIC, sizeof(BCACHE_MAGIC)) == 0)
-    {
-        size = sizeof(struct bch_sb) + sb->u64s * BCH_U64S_SIZE;
-    }
-    return size;
-}
-
 inline uint64_t benz_bch_get_block_size(const struct bch_sb *sb)
 {
     return (uint64_t)sb->block_size * BCH_SECTOR_SIZE;
@@ -245,6 +267,23 @@ uint64_t benz_bch_inline_data_offset(const struct btree_node* start, const struc
     return (uint64_t)((const uint8_t*)bch_val - (const uint8_t*)start) + start_offset;
 }
 
+// get the superblock size, if sb is null return the minimal size it can be so we can extract the full size 
+// to allocate for. Once the superblock was allocated once we can extract is real size.
+uint64_t benz_bch_get_sb_size(const struct bch_sb *sb)
+{
+    uint64_t size = 0;
+    if (sb == NULL)
+    {
+        size = sizeof(struct bch_sb);
+    }
+    else if (memcmp(&sb->magic, &BCACHE_MAGIC, sizeof(BCACHE_MAGIC)) == 0)
+    {
+        size = sizeof(struct bch_sb) + sb->u64s * BCH_U64S_SIZE;
+    }
+    return size;
+}
+
+
 struct bch_sb *benz_bch_realloc_sb(struct bch_sb *sb, uint64_t size)
 {
     if (size == 0)
@@ -281,6 +320,9 @@ uint64_t benz_bch_fread_btree_node(struct btree_node *btree_node, const struct b
     return fread(btree_node, benz_bch_get_btree_node_size(sb), 1, fp);
 }
 
+
+// Python C Interface
+// -------------------
 int BCacheFS_fini(BCacheFS *this)
 {
     return BCacheFS_close(this);
@@ -439,6 +481,7 @@ const struct bch_val *BCacheFS_iter_next(const BCacheFS *this, BCacheFS_iterator
     if (iter->bset == NULL && iter->btree_ptr)
     {
         iter->bset = BCacheFS_iter_next_bset(this, iter);
+        printf("%lld \n", *(uint64_t*)(iter->bset));
     }
     if (iter->btree_ptr && iter->bset) {}
     else
