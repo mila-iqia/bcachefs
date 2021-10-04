@@ -6,8 +6,8 @@ extra_compile_args=[]
 libraries=[]
 
 # call python setup.py -coverage install to install with coverage enabled.
-# and debug symbols; coverage info will be generated in 
-# bcachefs/build/temp.linux-x86_64-3.8/bcachefs/*.(gcda|gcno) 
+# and debug symbols; coverage info will be generated in
+# bcachefs/build/temp.linux-x86_64-3.8/bcachefs/*.(gcda|gcno)
 if '-coverage' in sys.argv:
     print("Compiling with coverage")
     sys.argv.remove('-coverage')
@@ -27,11 +27,9 @@ bcachefs_module = Extension(
 
 setup(
     name="bcachefs",
-    version="0.1.2",
+    version="0.1.5",
     author="Satya Ortiz-Gagné",
     url="",
     packages=find_packages(),
-    install_requires=["numpy"],
-    tests_require=["pytest"],
-    ext_modules=[bcachefs_module]
+    ext_modules=[bcachefs_module],
 )
