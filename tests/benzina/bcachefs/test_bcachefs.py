@@ -79,7 +79,7 @@ def test_ls():
         assert ls == ["n04467665_63788.JPEG"]
 
 
-def test_open_file():
+def test_read_file():
     assert os.path.exists("testdata/mini_bcachefs.img")
     with BCacheFS("testdata/mini_bcachefs.img") as fs:
         inode = fs.find_dirent("file1").inode

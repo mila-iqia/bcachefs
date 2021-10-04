@@ -25,10 +25,8 @@ jobs:
       - name: Install
         run: |
           git submodule update --init
-          python setup.py -coverage install
-
-      - name: Tests
-        run: |
+          pip install --install-option="-coverage" -e .[test]
           pytest tests
           bash <(curl -s https://codecov.io/bash)
+
 
