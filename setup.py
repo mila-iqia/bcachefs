@@ -12,6 +12,7 @@ setup(
     name="bcachefs",
     version="0.1.5",
     author="Satya Ortiz-Gagné",
+    description='Fast Dataset Archive for HPC',
     url="",
     packages=find_packages(),
     install_requires=["numpy"],

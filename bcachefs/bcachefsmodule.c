@@ -100,7 +100,7 @@ static PyObject* PyBCacheFS_getsize(PyBCacheFS* self, void* closure)
 static PyMethodDef PyBCacheFS_methods[] = {
     {"open", (PyCFunction)(_PyCFunctionFastWithKeywords)PyBCacheFS_open,
      METH_FASTCALL | METH_KEYWORDS, "Open bcachefs file to read"},
-    {"close", (PyCFunction)(PyNoArgsFunction)PyBCacheFS_close, METH_NOARGS, "Close bcachefs file"},
+    {"close", (PyCFunction)PyBCacheFS_close, METH_NOARGS, "Close bcachefs file"},
     {"iter", (PyCFunction)(_PyCFunctionFastWithKeywords)PyBCacheFS_iter,
      METH_FASTCALL | METH_KEYWORDS, "Iterate over entries of specified type"},
     {NULL, NULL, 0, NULL}  /* Sentinel */
@@ -205,7 +205,7 @@ static PyObject *PyBCacheFS_iterator_next(PyBCacheFS_iterator *self)
  */
 
 static PyMethodDef PyBCacheFS_iterator_methods[] = {
-    {"next", (PyCFunction)(PyNoArgsFunction)PyBCacheFS_iterator_next, METH_NOARGS, "Iterate to next item"},
+    {"next", (PyCFunction)PyBCacheFS_iterator_next, METH_NOARGS, "Iterate to next item"},
     {NULL, NULL, 0, NULL}  /* Sentinel */
 };
 

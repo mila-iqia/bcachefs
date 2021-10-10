@@ -759,8 +759,22 @@ typedef struct {
     const uint8_t *name;
 } BCacheFS_dirent;
 
+
+// ?
 int BCacheFS_fini(BCacheFS *this);
+
+/*! Open a bcachefs file for reading and initialze the BCacheFS object for reading
+ * 
+ * @param this reference to a BCacheFS object, allocating/freeing this reference is the responsibility of the user
+ * @param path to the archive
+ * 
+ * @return -1 on failures
+ */
 int BCacheFS_open(BCacheFS *this, const char *path);
+
+
+/*! Close the BCacheFS object
+ */
 int BCacheFS_close(BCacheFS *this);
 int BCacheFS_iter(const BCacheFS *this, BCacheFS_iterator *iter, enum btree_id type);
 int BCacheFS_next_iter(const BCacheFS *this, BCacheFS_iterator *iter, const struct bch_btree_ptr_v2 *btree_ptr);
