@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -262,6 +263,76 @@ struct bkey_local benz_bch_parse_bkey(const struct bkey *bkey, const struct bkey
     }
     return ret;
 }
+
+#pragma GCC push_options
+#pragma GCC optimize ("O2")
+
+#define benz_getle32(a, b) a
+#define luai_unlikely(x) x
+#define benz_getle64(x, b) *(x + b)
+
+unsigned benz_ctz64(uint64_t x){
+    return x ? __builtin_ctzll(x) : 64;
+}
+
+int   benz_bch_inode_unpack_size(uint64_t*               bi_size,
+                                 const struct bch_inode* p,
+                                 const void*             end){
+    register int      new_varint, nr_fields;
+    register int      varintc;
+    register uint32_t bi_flags;
+    register uint64_t f;
+    const uint8_t* e = (const uint8_t*)end;
+    const uint8_t* r = (const uint8_t*)&p->fields;
+
+    *bi_size = 0;/* Default is 0. */
+    if(e<r)
+        return -1;/* Parse error, end pointer behind field pointer! */
+
+    bi_flags   = benz_getle32(&p->bi_flags, 0);
+    nr_fields  = (int)(bi_flags >> 24) & 127;
+    new_varint = !!(bi_flags & BCH_INODE_FLAG_new_varint);
+
+    if(!new_varint)
+        return -1;/* Parse error, old-style varint! */
+    if(e-r < (ptrdiff_t)nr_fields)
+        return -1;/* Parse error, end pointer far too short! At least 1 byte/field. */
+
+    /**
+     * The field bi_size is the 5th field and 9th varint in a v2-packed inode,
+     * being preceded by four wide (double-varint) fields (the 96-bit timestamps).
+     * 
+     * Accordingly, check that the number of fields is at least 5, and if so
+     * then scan up to the 9th varint.
+     */
+
+    if(nr_fields < 5)
+        return  0;/* No size field encoded, default is 0. */
+
+    for(varintc=0; varintc<9; varintc++){
+        f  = benz_ctz64(*r+1)+1;
+        r += f;
+        if(luai_unlikely(r>e))
+            return -1;
+    }
+
+    /**
+     * Pointer r now points one byte past the end of the target varint.
+     * Decode varint at current location.
+     */
+
+    f *= 6;
+    f &= 0x3F;/* Can be elided on x86_64 */
+    /* For field length:   9  8  7  6  5  4  3  2  1    */
+    /* Shift right by: --  0  8 15 22 29 36 43 50 57 -- */
+    f  = 000101726354453627100 >> f;
+    f &= 0x3F;/* Can be elided on x86_64 */
+    f  = benz_getle64(r,-8) >> f;
+    *bi_size = f;
+
+    return 0;
+}
+#pragma GCC pop_options
 
 inline uint64_t benz_bch_get_block_size(const struct bch_sb *sb)
 {
@@ -664,6 +735,28 @@ BCacheFS_dirent BCacheFS_iter_make_dirent(const BCacheFS *this, BCacheFS_iterato
                                   .type = bch_dirent->d_type,
                                   .name = bch_dirent->d_name};
 }
+
+BCacheFS_inode BCacheFS_iter_make_inode(const BCacheFS *this, BCacheFS_iterator *iter)
+{
+    (void)this;
+
+    while (iter->next_it)
+    {
+        iter = iter->next_it;
+    }
+
+    const struct bkey *bkey = iter->bkey;
+    const struct bkey_local bkey_local = benz_bch_parse_bkey(bkey, &iter->btree_node->format);
+    const struct bch_inode *bch_inode = (const void*)iter->bch_val;
+
+    const void *p_end = (const void*)((const uint8_t*)bkey + bkey->u64s * BCH_U64S_SIZE);
+
+    BCacheFS_inode inode = {0};
+    inode.inode = bkey_local.p.inode;
+    benz_bch_inode_unpack_size(&inode.size, bch_inode, p_end);
+    return inode;
+}
+
 
 inline uint64_t benz_get_flag_bits(const uint64_t bitfield, uint8_t first_bit, uint8_t last_bit)
 {

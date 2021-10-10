@@ -177,6 +177,20 @@ enum bch_extent_entry_type {
 #undef x
 };
 
+enum bch_inode_flags{
+    BCH_INODE_FLAG_sync              = (1UL <<  0),
+    BCH_INODE_FLAG_immutable         = (1UL <<  1),
+    BCH_INODE_FLAG_append            = (1UL <<  2),
+    BCH_INODE_FLAG_nodump            = (1UL <<  3),
+    BCH_INODE_FLAG_noatime           = (1UL <<  4),
+    BCH_INODE_FLAG_i_size_dirty      = (1UL <<  5),
+    BCH_INODE_FLAG_i_sectors_dirty   = (1UL <<  6),
+    BCH_INODE_FLAG_unlinked          = (1UL <<  7),
+    BCH_INODE_FLAG_backptr_untrusted = (1UL <<  8),
+    BCH_INODE_FLAG_new_varint        = (1UL << 31),
+};
+
+
 struct u64s_spec {
     uint32_t size;  /* size in bytes of the u64s field */
     uint32_t start; /* should be added to the u64s field */
@@ -735,16 +749,18 @@ typedef struct {
 } BCacheFS;
 
 typedef struct BCacheFS_iterator {
-    enum btree_id type;
-    const struct jset_entry *jset_entry;
-    const struct bch_btree_ptr_v2 *btree_ptr;
-    const struct bset *bset;
-    const void *bkey;
-    const struct bch_val *bch_val;
-    struct btree_node *btree_node;
-    struct BCacheFS_iterator *next_it;
+    enum btree_id type;                         //! which btree are we iterating over
+    const struct jset_entry *jset_entry;        //! journal entry specifying the location of the btree root
+    const struct bch_btree_ptr_v2 *btree_ptr;   //! current btree node location
+    const struct bset *bset;                    //! current bset inside the btree
+    const void *bkey;                           //! current bkey inside the bset
+    const struct bch_val *bch_val;              //! current value stored inside along side the key
+    struct btree_node *btree_node;              //! current btree node
+    struct BCacheFS_iterator *next_it;          //! pointer to the children btree node if iterating over nested Btrees
 } BCacheFS_iterator;
 
+
+//! Decoded value from the extend btree
 typedef struct {
     uint64_t inode;
     uint64_t file_offset;
@@ -752,6 +768,13 @@ typedef struct {
     uint64_t size;
 } BCacheFS_extent;
 
+//! Decoded value from the inode btree
+typedef struct {
+    uint64_t inode;
+    uint64_t size;
+} BCacheFS_inode;
+
+//! Decoded value from the dirent btree
 typedef struct {
     uint64_t parent_inode;
     uint64_t inode;
@@ -769,8 +792,10 @@ const struct bch_val *BCacheFS_iter_next(const BCacheFS *this, BCacheFS_iterator
 const struct jset_entry *BCacheFS_iter_next_jset_entry(const BCacheFS *this, BCacheFS_iterator *iter);
 const struct bch_btree_ptr_v2 *BCacheFS_iter_next_btree_ptr(const BCacheFS *this, BCacheFS_iterator *iter);
 const struct bset *BCacheFS_iter_next_bset(const BCacheFS *this, BCacheFS_iterator *iter);
+
 BCacheFS_dirent BCacheFS_iter_make_dirent(const BCacheFS *this, BCacheFS_iterator *iter);
 BCacheFS_extent BCacheFS_iter_make_extent(const BCacheFS *this, BCacheFS_iterator *iter);
+BCacheFS_inode BCacheFS_iter_make_inode(const BCacheFS *this, BCacheFS_iterator *iter);
 
 uint64_t benz_get_flag_bits(const uint64_t bitfield, uint8_t first_bit, uint8_t last_bit);
 

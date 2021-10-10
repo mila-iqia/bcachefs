@@ -197,6 +197,11 @@ static PyObject *PyBCacheFS_iterator_next(PyBCacheFS_iterator *self)
         BCacheFS_dirent dirent = BCacheFS_iter_make_dirent(fs, iter);
         return Py_BuildValue("KKIU", dirent.parent_inode, dirent.inode, (uint32_t)dirent.type, dirent.name);
     }
+    else if (bch_val && iter->type == BTREE_ID_inodes)
+    {
+        BCacheFS_inode inode = BCacheFS_iter_make_inode(fs, iter);
+        return Py_BuildValue("KK", inode.inode, inode.size);
+    }
     return Py_None;
 }
 
