@@ -8,24 +8,27 @@ jobs:
 
     steps:
       - uses: actions/checkout@v1
+        with:
+          submodules: true
+          fetch-depth: 0
 
       - name: Set up Python 3.8
         uses: actions/setup-python@v1
         with:
           python-version: 3.8
 
-      - name: Install tools
+      - name: Install Requirements
         run: |
-          sudo apt-get update
-          sudo apt-get install gcc-9 g++-9
-          sudo ln -f /usr/bin/gcov-9 /usr/bin/gcov
-          pip install gcovr
-          mkdir -p build
+          git submodule update --init
+          pip install -r requirements.txt
+          pip install -r tests/requirements.txt
 
       - name: Install
         run: |
-          git submodule update --init
-          pip install --install-option="-coverage" -e .[test]
+          python setup.py -coverage install
+
+      - name: Tests
+        run: |
           pytest tests
           bash <(curl -s https://codecov.io/bash)
 
