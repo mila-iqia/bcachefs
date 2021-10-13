@@ -13,15 +13,15 @@
 /* Type Definitions and Forward Declarations */
 typedef struct {
     PyObject_HEAD
-    BCacheFS _fs;
-} PyBCacheFS;
-static PyTypeObject PyBCacheFSType;
+    Bcachefs _fs;
+} PyBcachefs;
+static PyTypeObject PyBcachefsType;
 
 typedef struct {
     PyObject_HEAD
-    PyBCacheFS *_pyfs;
-    BCacheFS_iterator _iter;
-} PyBCacheFS_iterator;
-static PyTypeObject PyBCacheFS_iteratorType;
+    PyBcachefs *_pyfs;
+    Bcachefs_iterator _iter;
+} PyBcachefs_iterator;
+static PyTypeObject PyBcachefs_iteratorType;
 
 #endif // BCACHEFSMODULE_H

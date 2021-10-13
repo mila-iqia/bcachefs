@@ -12,9 +12,9 @@
  * @brief Slot tp_dealloc
  */
 
-static void PyBCacheFS_dealloc(PyBCacheFS* self)
+static void PyBcachefs_dealloc(PyBcachefs* self)
 {
-    BCacheFS_fini(&self->_fs);
+    Bcachefs_fini(&self->_fs);
     Py_TYPE(self)->tp_free(self);
 }
 
@@ -22,7 +22,7 @@ static void PyBCacheFS_dealloc(PyBCacheFS* self)
  * @brief Slot tp_new
  */
 
-static PyObject* PyBCacheFS_new(PyTypeObject* type, PyObject* args, PyObject* kwargs)
+static PyObject* PyBcachefs_new(PyTypeObject* type, PyObject* args, PyObject* kwargs)
 {
     (void)args;
     (void)kwargs;
@@ -33,12 +33,12 @@ static PyObject* PyBCacheFS_new(PyTypeObject* type, PyObject* args, PyObject* kw
  * @brief
  */
 
-static PyObject *PyBCacheFS_open(PyBCacheFS *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+static PyObject *PyBcachefs_open(PyBcachefs *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
     (void)kwnames;
-    if (nargs != 1 || !BCacheFS_open(&self->_fs, (void*)PyUnicode_1BYTE_DATA(args[0])))
+    if (nargs != 1 || !Bcachefs_open(&self->_fs, (void*)PyUnicode_1BYTE_DATA(args[0])))
     {
-        PyErr_SetString(PyExc_RuntimeError, "Error opening BCacheFS image file");
+        PyErr_SetString(PyExc_RuntimeError, "Error opening Bcachefs image file");
         return NULL;
     }
     Py_INCREF(Py_None);
@@ -49,11 +49,11 @@ static PyObject *PyBCacheFS_open(PyBCacheFS *self, PyObject *const *args, Py_ssi
  * @brief
  */
 
-static PyObject *PyBCacheFS_close(PyBCacheFS *self)
+static PyObject *PyBcachefs_close(PyBcachefs *self)
 {
-    if (!BCacheFS_close(&self->_fs))
+    if (!Bcachefs_close(&self->_fs))
     {
-        PyErr_SetString(PyExc_RuntimeError, "Error closing BCacheFS image file");
+        PyErr_SetString(PyExc_RuntimeError, "Error closing Bcachefs image file");
         return NULL;
     }
     Py_INCREF(Py_None);
@@ -64,18 +64,18 @@ static PyObject *PyBCacheFS_close(PyBCacheFS *self)
  * @brief
  */
 
-static PyObject *PyBCacheFS_iter(PyBCacheFS *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+static PyObject *PyBcachefs_iter(PyBcachefs *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
     (void)kwnames;
-    PyBCacheFS_iterator *iter = (void*)PyObject_CallObject((PyObject*)&PyBCacheFS_iteratorType, NULL);
+    PyBcachefs_iterator *iter = (void*)PyObject_CallObject((PyObject*)&PyBcachefs_iteratorType, NULL);
     if (iter)
     {
         Py_INCREF(self);
         iter->_pyfs = self;
     }
-    if (iter == NULL || nargs != 1 || !BCacheFS_iter(&iter->_pyfs->_fs, &iter->_iter, (enum btree_id)(int)PyLong_AsLong(args[0])))
+    if (iter == NULL || nargs != 1 || !Bcachefs_iter(&iter->_pyfs->_fs, &iter->_iter, (enum btree_id)(int)PyLong_AsLong(args[0])))
     {
-        PyErr_SetString(PyExc_RuntimeError, "Error initializing BCacheFS iterator");
+        PyErr_SetString(PyExc_RuntimeError, "Error initializing Bcachefs iterator");
         Py_XDECREF(iter);
         return NULL;
     }
@@ -87,7 +87,7 @@ static PyObject *PyBCacheFS_iter(PyBCacheFS *self, PyObject *const *args, Py_ssi
  * @brief Getter for length.
  */
 
-static PyObject* PyBCacheFS_getsize(PyBCacheFS* self, void* closure)
+static PyObject* PyBcachefs_getsize(PyBcachefs* self, void* closure)
 {
     (void)closure;
     return PyLong_FromLong(self->_fs.size);
@@ -97,11 +97,11 @@ static PyObject* PyBCacheFS_getsize(PyBCacheFS* self, void* closure)
  * Table of methods.
  */
 
-static PyMethodDef PyBCacheFS_methods[] = {
-    {"open", (PyCFunction)(_PyCFunctionFastWithKeywords)PyBCacheFS_open,
+static PyMethodDef PyBcachefs_methods[] = {
+    {"open", (PyCFunction)(_PyCFunctionFastWithKeywords)PyBcachefs_open,
      METH_FASTCALL | METH_KEYWORDS, "Open bcachefs file to read"},
-    {"close", (PyCFunction)(PyNoArgsFunction)PyBCacheFS_close, METH_NOARGS, "Close bcachefs file"},
-    {"iter", (PyCFunction)(_PyCFunctionFastWithKeywords)PyBCacheFS_iter,
+    {"close", (PyCFunction)(PyNoArgsFunction)PyBcachefs_close, METH_NOARGS, "Close bcachefs file"},
+    {"iter", (PyCFunction)(_PyCFunctionFastWithKeywords)PyBcachefs_iter,
      METH_FASTCALL | METH_KEYWORDS, "Iterate over entries of specified type"},
     {NULL, NULL, 0, NULL}  /* Sentinel */
 };
@@ -110,17 +110,17 @@ static PyMethodDef PyBCacheFS_methods[] = {
  * Table of getter-setters.
  */
 
-static PyGetSetDef PyBCacheFS_getsetters[] = {
-    {"size", (getter)PyBCacheFS_getsize, 0, "Size of the image file", NULL},
+static PyGetSetDef PyBcachefs_getsetters[] = {
+    {"size", (getter)PyBcachefs_getsize, 0, "Size of the image file", NULL},
     {NULL, NULL, 0, NULL, NULL}  /* Sentinel */
 };
 
-static PyTypeObject PyBCacheFSType = {
+static PyTypeObject PyBcachefsType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    "benzina.c_bcachefs.BCacheFS",   /* tp_name */
-    sizeof(PyBCacheFS),              /* tp_basicsize */
+    "benzina.c_bcachefs.Bcachefs",   /* tp_name */
+    sizeof(PyBcachefs),              /* tp_basicsize */
     0,                               /* tp_itemsize */
-    (destructor)PyBCacheFS_dealloc,  /* tp_dealloc */
+    (destructor)PyBcachefs_dealloc,  /* tp_dealloc */
     0,                               /* tp_print */
     0,                               /* tp_getattr */
     0,                               /* tp_setattr */
@@ -136,16 +136,16 @@ static PyTypeObject PyBCacheFSType = {
     0,                               /* tp_setattro */
     0,                               /* tp_as_buffer */
     Py_TPFLAGS_DEFAULT,              /* tp_flags */
-    "BCacheFS object",               /* tp_doc */
+    "Bcachefs object",               /* tp_doc */
     0,                               /* tp_traverse */
     0,                               /* tp_clear */
     0,                               /* tp_richcompare */
     0,                               /* tp_weaklistoffset */
     0,                               /* tp_iter */
     0,                               /* tp_iternext */
-    PyBCacheFS_methods,              /* tp_methods */
+    PyBcachefs_methods,              /* tp_methods */
     0,                               /* tp_members */
-    PyBCacheFS_getsetters,           /* tp_getset */
+    PyBcachefs_getsetters,           /* tp_getset */
     0,                               /* tp_base */
     0,                               /* tp_dict */
     0,                               /* tp_descr_get */
@@ -153,16 +153,16 @@ static PyTypeObject PyBCacheFSType = {
     0,                               /* tp_dictoffset */
     0,                               /* tp_init */
     0,                               /* tp_alloc */
-    PyBCacheFS_new,                  /* tp_new */
+    PyBcachefs_new,                  /* tp_new */
 };
 
 /**
  * @brief Slot tp_dealloc
  */
 
-static void PyBCacheFS_iterator_dealloc(PyBCacheFS_iterator* self)
+static void PyBcachefs_iterator_dealloc(PyBcachefs_iterator* self)
 {
-    BCacheFS_iter_fini(&self->_pyfs->_fs, &self->_iter);
+    Bcachefs_iter_fini(&self->_pyfs->_fs, &self->_iter);
     Py_XDECREF((PyObject*)self->_pyfs);
     Py_TYPE(self)->tp_free(self);
 }
@@ -171,7 +171,7 @@ static void PyBCacheFS_iterator_dealloc(PyBCacheFS_iterator* self)
  * @brief Slot tp_new
  */
 
-static PyObject* PyBCacheFS_iterator_new(PyTypeObject* type, PyObject* args, PyObject* kwargs)
+static PyObject* PyBcachefs_iterator_new(PyTypeObject* type, PyObject* args, PyObject* kwargs)
 {
     (void)args;
     (void)kwargs;
@@ -182,19 +182,19 @@ static PyObject* PyBCacheFS_iterator_new(PyTypeObject* type, PyObject* args, PyO
  * @brief
  */
 
-static PyObject *PyBCacheFS_iterator_next(PyBCacheFS_iterator *self)
+static PyObject *PyBcachefs_iterator_next(PyBcachefs_iterator *self)
 {
-    const BCacheFS *fs = &self->_pyfs->_fs;
-    BCacheFS_iterator *iter = &self->_iter;
-    const struct bch_val *bch_val = BCacheFS_iter_next(fs, iter);
+    const Bcachefs *fs = &self->_pyfs->_fs;
+    Bcachefs_iterator *iter = &self->_iter;
+    const struct bch_val *bch_val = Bcachefs_iter_next(fs, iter);
     if (bch_val && iter->type == BTREE_ID_extents)
     {
-        BCacheFS_extent extent = BCacheFS_iter_make_extent(fs, iter);
+        Bcachefs_extent extent = Bcachefs_iter_make_extent(fs, iter);
         return Py_BuildValue("KKKK", extent.inode, extent.file_offset, extent.offset, extent.size);
     }
     else if (bch_val && iter->type == BTREE_ID_dirents)
     {
-        BCacheFS_dirent dirent = BCacheFS_iter_make_dirent(fs, iter);
+        Bcachefs_dirent dirent = Bcachefs_iter_make_dirent(fs, iter);
         return Py_BuildValue("KKIU", dirent.parent_inode, dirent.inode, (uint32_t)dirent.type, dirent.name);
     }
     return Py_None;
@@ -204,17 +204,17 @@ static PyObject *PyBCacheFS_iterator_next(PyBCacheFS_iterator *self)
  * Table of methods.
  */
 
-static PyMethodDef PyBCacheFS_iterator_methods[] = {
-    {"next", (PyCFunction)(PyNoArgsFunction)PyBCacheFS_iterator_next, METH_NOARGS, "Iterate to next item"},
+static PyMethodDef PyBcachefs_iterator_methods[] = {
+    {"next", (PyCFunction)(PyNoArgsFunction)PyBcachefs_iterator_next, METH_NOARGS, "Iterate to next item"},
     {NULL, NULL, 0, NULL}  /* Sentinel */
 };
 
-static PyTypeObject PyBCacheFS_iteratorType = {
+static PyTypeObject PyBcachefs_iteratorType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    "benzina.c_bcachefs.BCacheFS_iterator",   /* tp_name */
-    sizeof(PyBCacheFS_iterator),     /* tp_basicsize */
+    "benzina.c_bcachefs.Bcachefs_iterator",   /* tp_name */
+    sizeof(PyBcachefs_iterator),     /* tp_basicsize */
     0,                               /* tp_itemsize */
-    (destructor)PyBCacheFS_iterator_dealloc,  /* tp_dealloc */
+    (destructor)PyBcachefs_iterator_dealloc,  /* tp_dealloc */
     0,                               /* tp_print */
     0,                               /* tp_getattr */
     0,                               /* tp_setattr */
@@ -230,14 +230,14 @@ static PyTypeObject PyBCacheFS_iteratorType = {
     0,                               /* tp_setattro */
     0,                               /* tp_as_buffer */
     Py_TPFLAGS_DEFAULT,              /* tp_flags */
-    "BCacheFS_iterator object",      /* tp_doc */
+    "Bcachefs_iterator object",      /* tp_doc */
     0,                               /* tp_traverse */
     0,                               /* tp_clear */
     0,                               /* tp_richcompare */
     0,                               /* tp_weaklistoffset */
     0,                               /* tp_iter */
     0,                               /* tp_iternext */
-    PyBCacheFS_iterator_methods,     /* tp_methods */
+    PyBcachefs_iterator_methods,     /* tp_methods */
     0,                               /* tp_members */
     0,                               /* tp_getset */
     0,                               /* tp_base */
@@ -247,7 +247,7 @@ static PyTypeObject PyBCacheFS_iteratorType = {
     0,                               /* tp_dictoffset */
     0,                               /* tp_init */
     0,                               /* tp_alloc */
-    PyBCacheFS_iterator_new,         /* tp_new */
+    PyBcachefs_iterator_new,         /* tp_new */
 };
 
 static PyModuleDef c_bcachefs_module_def = {
@@ -278,8 +278,8 @@ PyMODINIT_FUNC PyInit_c_bcachefs(void)
             Py_INCREF(&T##Type);                                    \
             PyModule_AddObject(module, #T, (PyObject*)&T##Type);    \
         }while(0)
-    ADDTYPE(PyBCacheFS);
-    ADDTYPE(PyBCacheFS_iterator);
+    ADDTYPE(PyBcachefs);
+    ADDTYPE(PyBcachefs_iterator);
     #undef ADDTYPE
 
     return module;

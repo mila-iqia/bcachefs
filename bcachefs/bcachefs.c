@@ -149,11 +149,9 @@ const struct bch_val *benz_bch_next_bch_val(const struct bkey *p, const struct b
 }
 
 // Fetch next valid bset
-const struct bset *benz_bch_next_bset(const struct btree_node *p, const struct bset *c, const struct bch_sb *sb)
+const struct bset *benz_bch_next_bset(const struct btree_node *p, const void *p_end, const struct bset *c, const struct bch_sb *sb)
 {
-    uint64_t btree_node_size = benz_bch_get_btree_node_size(sb);
     uint64_t block_size = benz_bch_get_block_size(sb);
-    const struct bset *p_end = (const void*)((const uint8_t*)p + btree_node_size);
     do
     {
         if (c == NULL)
@@ -182,7 +180,7 @@ const struct bset *benz_bch_next_bset(const struct btree_node *p, const struct b
             _cb += (uint64_t)p;
             c = (const void*)_cb;
         }
-        if (c >= p_end)
+        if ((const void*)c >= p_end)
         {
             c = NULL;
         }
@@ -354,23 +352,24 @@ uint64_t benz_bch_fread_sb(struct bch_sb *sb, uint64_t size, FILE *fp)
     return fread(sb, size, 1, fp);
 }
 
-uint64_t benz_bch_fread_btree_node(struct btree_node *btree_node, const struct bch_sb *sb, const struct bch_extent_ptr *bch_extent_ptr, FILE *fp)
+uint64_t benz_bch_fread_btree_node(struct btree_node *btree_node, const struct bch_sb *sb, const struct bch_btree_ptr_v2 *btree_ptr, FILE *fp)
 {
-    uint64_t offset = benz_bch_get_extent_offset(bch_extent_ptr);
+    uint64_t offset = benz_bch_get_extent_offset(btree_ptr->start);
     fseek(fp, (long)offset, SEEK_SET);
-    return fread(btree_node, benz_bch_get_btree_node_size(sb), 1, fp);
+    memset(btree_node, 0, benz_bch_get_btree_node_size(sb));
+    return fread(btree_node, btree_ptr->sectors_written * BCH_SECTOR_SIZE, 1, fp);
 }
 
 // Filesystem and iterator abstraction layer
 // -----------------------------------------
-int BCacheFS_fini(BCacheFS *this)
+int Bcachefs_fini(Bcachefs *this)
 {
-    return BCacheFS_close(this);
+    return Bcachefs_close(this);
 }
 
-int BCacheFS_open(BCacheFS *this, const char *path)
+int Bcachefs_open(Bcachefs *this, const char *path)
 {
-    if (!BCacheFS_close(this))
+    if (!Bcachefs_close(this))
     {
         return 0;
     }
@@ -391,12 +390,12 @@ int BCacheFS_open(BCacheFS *this, const char *path)
     }
     if (!ret)
     {
-        BCacheFS_fini(this);
+        Bcachefs_fini(this);
     }
     return ret;
 }
 
-int BCacheFS_close(BCacheFS *this)
+int Bcachefs_close(Bcachefs *this)
 {
     if (this->fp && !fclose(this->fp))
     {
@@ -411,15 +410,15 @@ int BCacheFS_close(BCacheFS *this)
     return this->fp == NULL && this->sb == NULL;
 }
 
-int BCacheFS_iter(const BCacheFS *this, BCacheFS_iterator *iter, enum btree_id type)
+int Bcachefs_iter(const Bcachefs *this, Bcachefs_iterator *iter, enum btree_id type)
 {
     iter->type = type;
     iter->btree_node = benz_bch_malloc_btree_node(this->sb);
-    iter->jset_entry = BCacheFS_iter_next_jset_entry(this, iter);
-    iter->btree_ptr = BCacheFS_iter_next_btree_ptr(this, iter);
+    iter->jset_entry = Bcachefs_iter_next_jset_entry(this, iter);
+    iter->btree_ptr = Bcachefs_iter_next_btree_ptr(this, iter);
     if (iter->btree_ptr && !benz_bch_fread_btree_node(iter->btree_node,
                                                       this->sb,
-                                                      iter->btree_ptr->start,
+                                                      iter->btree_ptr,
                                                       this->fp))
     {
         iter->btree_ptr = NULL;
@@ -427,11 +426,11 @@ int BCacheFS_iter(const BCacheFS *this, BCacheFS_iterator *iter, enum btree_id t
     return iter->jset_entry && iter->btree_node && iter->btree_ptr;
 }
 
-int BCacheFS_next_iter(const BCacheFS *this, BCacheFS_iterator *iter, const struct bch_btree_ptr_v2 *btree_ptr)
+int Bcachefs_next_iter(const Bcachefs *this, Bcachefs_iterator *iter, const struct bch_btree_ptr_v2 *btree_ptr)
 {
-    BCacheFS_iterator *next_it = malloc(sizeof(BCacheFS_iterator));
+    Bcachefs_iterator *next_it = malloc(sizeof(Bcachefs_iterator));
 
-    *next_it = (BCacheFS_iterator){
+    *next_it = (Bcachefs_iterator){
         .type = iter->type,
         .btree_node = benz_bch_malloc_btree_node(this->sb),
         .btree_ptr = btree_ptr
@@ -439,7 +438,7 @@ int BCacheFS_next_iter(const BCacheFS *this, BCacheFS_iterator *iter, const stru
 
     if (next_it->btree_ptr && !benz_bch_fread_btree_node(next_it->btree_node,
                                                          this->sb,
-                                                         next_it->btree_ptr->start,
+                                                         next_it->btree_ptr,
                                                          this->fp))
     {
         next_it->btree_ptr = NULL;
@@ -452,21 +451,21 @@ int BCacheFS_next_iter(const BCacheFS *this, BCacheFS_iterator *iter, const stru
     }
     else
     {
-        BCacheFS_iter_fini(this, next_it);
+        Bcachefs_iter_fini(this, next_it);
         free(next_it);
         next_it = NULL;
         return 0;
     }
 }
 
-int BCacheFS_iter_fini(const BCacheFS *this, BCacheFS_iterator *iter)
+int Bcachefs_iter_fini(const Bcachefs *this, Bcachefs_iterator *iter)
 {
     (void)this;
     if (iter == NULL)
     {
         return 1;
     }
-    if (iter->next_it && BCacheFS_iter_fini(this, iter->next_it))
+    if (iter->next_it && Bcachefs_iter_fini(this, iter->next_it))
     {
         free(iter->next_it);
         iter->next_it = NULL;
@@ -476,7 +475,7 @@ int BCacheFS_iter_fini(const BCacheFS *this, BCacheFS_iterator *iter)
         free(iter->btree_node);
         iter->btree_node = NULL;
     }
-    *iter = (BCacheFS_iterator){
+    *iter = (Bcachefs_iterator){
         .type = BTREE_ID_NR,
         .btree_node = iter->btree_node,
         .next_it = iter->next_it
@@ -484,7 +483,7 @@ int BCacheFS_iter_fini(const BCacheFS *this, BCacheFS_iterator *iter)
     return iter->next_it == NULL && iter->btree_node == NULL;
 }
 
-const struct bch_val *_BCacheFS_iter_next_bch_val(const struct bkey *bkey, const struct bkey_format* format)
+const struct bch_val *_Bcachefs_iter_next_bch_val(const struct bkey *bkey, const struct bkey_format* format)
 {
     uint8_t key_u64s = 0;
     if (bkey == NULL)
@@ -502,7 +501,7 @@ const struct bch_val *_BCacheFS_iter_next_bch_val(const struct bkey *bkey, const
     return benz_bch_first_bch_val(bkey, key_u64s);
 }
 
-const struct bch_val *BCacheFS_iter_next(const BCacheFS *this, BCacheFS_iterator *iter)
+const struct bch_val *Bcachefs_iter_next(const Bcachefs *this, Bcachefs_iterator *iter)
 {
     const struct bkey *bkey = NULL;
     const struct bch_val *bch_val = NULL;
@@ -510,21 +509,21 @@ const struct bch_val *BCacheFS_iter_next(const BCacheFS *this, BCacheFS_iterator
     // Wind to current iterator
     if (iter->next_it)
     {
-        bch_val = BCacheFS_iter_next(this, iter->next_it);
+        bch_val = Bcachefs_iter_next(this, iter->next_it);
         if (bch_val)
         {
             return bch_val;
         }
         else
         {
-            BCacheFS_iter_fini(this, iter->next_it);
+            Bcachefs_iter_fini(this, iter->next_it);
             free(iter->next_it);
             iter->next_it = NULL;
         }
     }
     if (iter->bset == NULL && iter->btree_ptr)
     {
-        iter->bset = BCacheFS_iter_next_bset(this, iter);
+        iter->bset = Bcachefs_iter_next_bset(this, iter);
     }
     if (iter->btree_ptr && iter->bset) {}
     else
@@ -534,7 +533,7 @@ const struct bch_val *BCacheFS_iter_next(const BCacheFS *this, BCacheFS_iterator
     do
     {
         iter->bkey = benz_bch_next_bkey(iter->bset, iter->bkey, KEY_TYPE_MAX);
-        bch_val = _BCacheFS_iter_next_bch_val(iter->bkey, &iter->btree_node->format);
+        bch_val = _Bcachefs_iter_next_bch_val(iter->bkey, &iter->btree_node->format);
     } while (iter->bkey && bch_val == NULL);
     bkey = iter->bkey;
     switch ((int)iter->type)
@@ -542,9 +541,9 @@ const struct bch_val *BCacheFS_iter_next(const BCacheFS *this, BCacheFS_iterator
     case BTREE_ID_extents:
         iter->bch_val = bch_val;
         if (bch_val && bkey->type == KEY_TYPE_btree_ptr_v2 &&
-                BCacheFS_next_iter(this, iter, (const struct bch_btree_ptr_v2*)bch_val))
+                Bcachefs_next_iter(this, iter, (const struct bch_btree_ptr_v2*)bch_val))
         {
-            return BCacheFS_iter_next(this, iter);
+            return Bcachefs_iter_next(this, iter);
         }
         else if (bch_val)
         {
@@ -554,9 +553,9 @@ const struct bch_val *BCacheFS_iter_next(const BCacheFS *this, BCacheFS_iterator
     case BTREE_ID_dirents:
         iter->bch_val = bch_val;
         if (bch_val && bkey->type == KEY_TYPE_btree_ptr_v2 &&
-                BCacheFS_next_iter(this, iter, (const struct bch_btree_ptr_v2*)bch_val))
+                Bcachefs_next_iter(this, iter, (const struct bch_btree_ptr_v2*)bch_val))
         {
-            return BCacheFS_iter_next(this, iter);
+            return Bcachefs_iter_next(this, iter);
         }
         else if (bch_val)
         {
@@ -568,16 +567,16 @@ const struct bch_val *BCacheFS_iter_next(const BCacheFS *this, BCacheFS_iterator
     }
     if (iter->bkey == NULL)
     {
-        iter->bset = BCacheFS_iter_next_bset(this, iter);
+        iter->bset = Bcachefs_iter_next_bset(this, iter);
     }
     if (iter->bset == NULL)
     {
         iter->btree_ptr = NULL;
     }
-    return BCacheFS_iter_next(this, iter);
+    return Bcachefs_iter_next(this, iter);
 }
 
-const struct jset_entry *BCacheFS_iter_next_jset_entry(const BCacheFS *this, BCacheFS_iterator *iter)
+const struct jset_entry *Bcachefs_iter_next_jset_entry(const Bcachefs *this, Bcachefs_iterator *iter)
 {
     const struct jset_entry *jset_entry = iter->jset_entry;
     const struct bch_sb_field *sb_field_clean = (const void*)benz_bch_next_sb_field(
@@ -596,7 +595,7 @@ const struct jset_entry *BCacheFS_iter_next_jset_entry(const BCacheFS *this, BCa
     return jset_entry;
 }
 
-const struct bch_btree_ptr_v2 *BCacheFS_iter_next_btree_ptr(const BCacheFS *this, BCacheFS_iterator *iter)
+const struct bch_btree_ptr_v2 *Bcachefs_iter_next_btree_ptr(const Bcachefs *this, Bcachefs_iterator *iter)
 {
     (void)this;
     const struct jset_entry *jset_entry = iter->jset_entry;
@@ -620,14 +619,15 @@ const struct bch_btree_ptr_v2 *BCacheFS_iter_next_btree_ptr(const BCacheFS *this
     return btree_ptr;
 }
 
-const struct bset *BCacheFS_iter_next_bset(const BCacheFS *this, BCacheFS_iterator *iter)
+const struct bset *Bcachefs_iter_next_bset(const Bcachefs *this, Bcachefs_iterator *iter)
 {
-    struct btree_node *btree_node = iter->btree_node;
+    const struct btree_node *btree_node = iter->btree_node;
+    const void *btree_node_end = (const uint8_t*)iter->btree_node + iter->btree_ptr->sectors_written * BCH_SECTOR_SIZE;
     const struct bset *bset = iter->bset;
-    return benz_bch_next_bset(btree_node, bset, this->sb);
+    return benz_bch_next_bset(btree_node, btree_node_end, bset, this->sb);
 }
 
-BCacheFS_extent BCacheFS_iter_make_extent(const BCacheFS *this, BCacheFS_iterator *iter)
+Bcachefs_extent Bcachefs_iter_make_extent(const Bcachefs *this, Bcachefs_iterator *iter)
 {
     (void)this;
 
@@ -638,7 +638,7 @@ BCacheFS_extent BCacheFS_iter_make_extent(const BCacheFS *this, BCacheFS_iterato
 
     const struct bkey_local bkey_local = benz_bch_parse_bkey(iter->bkey, &iter->btree_node->format);
     const struct bkey *bkey = (const void*)&bkey_local;
-    BCacheFS_extent extent = {.inode = bkey->p.inode};
+    Bcachefs_extent extent = {.inode = bkey->p.inode};
     benz_bch_file_offset_size(bkey, iter->bch_val, &extent.file_offset, &extent.offset, &extent.size);
     if (bkey->type == KEY_TYPE_inline_data)
     {
@@ -649,7 +649,7 @@ BCacheFS_extent BCacheFS_iter_make_extent(const BCacheFS *this, BCacheFS_iterato
     return extent;
 }
 
-BCacheFS_dirent BCacheFS_iter_make_dirent(const BCacheFS *this, BCacheFS_iterator *iter)
+Bcachefs_dirent Bcachefs_iter_make_dirent(const Bcachefs *this, Bcachefs_iterator *iter)
 {
     (void)this;
 
@@ -659,7 +659,7 @@ BCacheFS_dirent BCacheFS_iter_make_dirent(const BCacheFS *this, BCacheFS_iterato
     }
     const struct bkey_local bkey_local = benz_bch_parse_bkey(iter->bkey, &iter->btree_node->format);
     const struct bch_dirent *bch_dirent = (const void*)iter->bch_val;
-    return (BCacheFS_dirent){.parent_inode = bkey_local.p.inode,
+    return (Bcachefs_dirent){.parent_inode = bkey_local.p.inode,
                                   .inode = bch_dirent->d_inum,
                                   .type = bch_dirent->d_type,
                                   .name = bch_dirent->d_name};
