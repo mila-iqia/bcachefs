@@ -732,9 +732,9 @@ typedef struct {
     FILE *fp;
     long size;
     struct bch_sb *sb;
-} BCacheFS;
+} Bcachefs;
 
-typedef struct BCacheFS_iterator {
+typedef struct Bcachefs_iterator {
     enum btree_id type;
     const struct jset_entry *jset_entry;
     const struct bch_btree_ptr_v2 *btree_ptr;
@@ -742,35 +742,35 @@ typedef struct BCacheFS_iterator {
     const void *bkey;
     const struct bch_val *bch_val;
     struct btree_node *btree_node;
-    struct BCacheFS_iterator *next_it;
-} BCacheFS_iterator;
+    struct Bcachefs_iterator *next_it;
+} Bcachefs_iterator;
 
 typedef struct {
     uint64_t inode;
     uint64_t file_offset;
     uint64_t offset;
     uint64_t size;
-} BCacheFS_extent;
+} Bcachefs_extent;
 
 typedef struct {
     uint64_t parent_inode;
     uint64_t inode;
     uint8_t type;
     const uint8_t *name;
-} BCacheFS_dirent;
+} Bcachefs_dirent;
 
-int BCacheFS_fini(BCacheFS *this);
-int BCacheFS_open(BCacheFS *this, const char *path);
-int BCacheFS_close(BCacheFS *this);
-int BCacheFS_iter(const BCacheFS *this, BCacheFS_iterator *iter, enum btree_id type);
-int BCacheFS_next_iter(const BCacheFS *this, BCacheFS_iterator *iter, const struct bch_btree_ptr_v2 *btree_ptr);
-int BCacheFS_iter_fini(const BCacheFS *this, BCacheFS_iterator *iter);
-const struct bch_val *BCacheFS_iter_next(const BCacheFS *this, BCacheFS_iterator *iter);
-const struct jset_entry *BCacheFS_iter_next_jset_entry(const BCacheFS *this, BCacheFS_iterator *iter);
-const struct bch_btree_ptr_v2 *BCacheFS_iter_next_btree_ptr(const BCacheFS *this, BCacheFS_iterator *iter);
-const struct bset *BCacheFS_iter_next_bset(const BCacheFS *this, BCacheFS_iterator *iter);
-BCacheFS_dirent BCacheFS_iter_make_dirent(const BCacheFS *this, BCacheFS_iterator *iter);
-BCacheFS_extent BCacheFS_iter_make_extent(const BCacheFS *this, BCacheFS_iterator *iter);
+int Bcachefs_fini(Bcachefs *this);
+int Bcachefs_open(Bcachefs *this, const char *path);
+int Bcachefs_close(Bcachefs *this);
+int Bcachefs_iter(const Bcachefs *this, Bcachefs_iterator *iter, enum btree_id type);
+int Bcachefs_next_iter(const Bcachefs *this, Bcachefs_iterator *iter, const struct bch_btree_ptr_v2 *btree_ptr);
+int Bcachefs_iter_fini(const Bcachefs *this, Bcachefs_iterator *iter);
+const struct bch_val *Bcachefs_iter_next(const Bcachefs *this, Bcachefs_iterator *iter);
+const struct jset_entry *Bcachefs_iter_next_jset_entry(const Bcachefs *this, Bcachefs_iterator *iter);
+const struct bch_btree_ptr_v2 *Bcachefs_iter_next_btree_ptr(const Bcachefs *this, Bcachefs_iterator *iter);
+const struct bset *Bcachefs_iter_next_bset(const Bcachefs *this, Bcachefs_iterator *iter);
+Bcachefs_dirent Bcachefs_iter_make_dirent(const Bcachefs *this, Bcachefs_iterator *iter);
+Bcachefs_extent Bcachefs_iter_make_extent(const Bcachefs *this, Bcachefs_iterator *iter);
 
 uint64_t benz_get_flag_bits(const uint64_t bitfield, uint8_t first_bit, uint8_t last_bit);
 
