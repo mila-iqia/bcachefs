@@ -705,7 +705,7 @@ const struct jset_entry *benz_bch_next_jset_entry(const struct bch_sb_field *p,
                                                   enum bch_jset_entry_type type);
 const struct bch_val *benz_bch_first_bch_val(const struct bkey *p, uint8_t key_u64s);
 const struct bch_val *benz_bch_next_bch_val(const struct bkey *p, const struct bch_val *c, uint32_t sizeof_c);
-const struct bset *benz_bch_next_bset(const struct btree_node *p, const struct bset *c, const struct bch_sb *sb);
+const struct bset *benz_bch_next_bset(const struct btree_node *p, const void *p_end, const struct bset *c, const struct bch_sb *sb);
 const struct bkey *benz_bch_next_bkey(const struct bset *p, const struct bkey *c, enum bch_bkey_type type);
 
 struct bkey_local benz_bch_parse_bkey(const struct bkey *bkey, const struct bkey_format *format);
@@ -726,7 +726,7 @@ struct bch_sb *benz_bch_realloc_sb(struct bch_sb *sb, uint64_t size);
 struct btree_node *benz_bch_malloc_btree_node(const struct bch_sb *sb);
 
 uint64_t benz_bch_fread_sb(struct bch_sb *sb, uint64_t size, FILE *fp);
-uint64_t benz_bch_fread_btree_node(struct btree_node *btree_node, const struct bch_sb *sb, const struct bch_extent_ptr *bch_extent_ptr, FILE *fp);
+uint64_t benz_bch_fread_btree_node(struct btree_node *btree_node, const struct bch_sb *sb, const struct bch_btree_ptr_v2 *btree_ptr, FILE *fp);
 
 typedef struct {
     FILE *fp;

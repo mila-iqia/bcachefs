@@ -149,11 +149,9 @@ const struct bch_val *benz_bch_next_bch_val(const struct bkey *p, const struct b
 }
 
 // Fetch next valid bset
-const struct bset *benz_bch_next_bset(const struct btree_node *p, const struct bset *c, const struct bch_sb *sb)
+const struct bset *benz_bch_next_bset(const struct btree_node *p, const void *p_end, const struct bset *c, const struct bch_sb *sb)
 {
-    uint64_t btree_node_size = benz_bch_get_btree_node_size(sb);
     uint64_t block_size = benz_bch_get_block_size(sb);
-    const struct bset *p_end = (const void*)((const uint8_t*)p + btree_node_size);
     do
     {
         if (c == NULL)
@@ -182,7 +180,7 @@ const struct bset *benz_bch_next_bset(const struct btree_node *p, const struct b
             _cb += (uint64_t)p;
             c = (const void*)_cb;
         }
-        if (c >= p_end)
+        if ((const void*)c >= p_end)
         {
             c = NULL;
         }
@@ -354,11 +352,12 @@ uint64_t benz_bch_fread_sb(struct bch_sb *sb, uint64_t size, FILE *fp)
     return fread(sb, size, 1, fp);
 }
 
-uint64_t benz_bch_fread_btree_node(struct btree_node *btree_node, const struct bch_sb *sb, const struct bch_extent_ptr *bch_extent_ptr, FILE *fp)
+uint64_t benz_bch_fread_btree_node(struct btree_node *btree_node, const struct bch_sb *sb, const struct bch_btree_ptr_v2 *btree_ptr, FILE *fp)
 {
-    uint64_t offset = benz_bch_get_extent_offset(bch_extent_ptr);
+    uint64_t offset = benz_bch_get_extent_offset(btree_ptr->start);
     fseek(fp, (long)offset, SEEK_SET);
-    return fread(btree_node, benz_bch_get_btree_node_size(sb), 1, fp);
+    memset(btree_node, 0, benz_bch_get_btree_node_size(sb));
+    return fread(btree_node, btree_ptr->sectors_written * BCH_SECTOR_SIZE, 1, fp);
 }
 
 // Filesystem and iterator abstraction layer
@@ -419,7 +418,7 @@ int Bcachefs_iter(const Bcachefs *this, Bcachefs_iterator *iter, enum btree_id t
     iter->btree_ptr = Bcachefs_iter_next_btree_ptr(this, iter);
     if (iter->btree_ptr && !benz_bch_fread_btree_node(iter->btree_node,
                                                       this->sb,
-                                                      iter->btree_ptr->start,
+                                                      iter->btree_ptr,
                                                       this->fp))
     {
         iter->btree_ptr = NULL;
@@ -439,7 +438,7 @@ int Bcachefs_next_iter(const Bcachefs *this, Bcachefs_iterator *iter, const stru
 
     if (next_it->btree_ptr && !benz_bch_fread_btree_node(next_it->btree_node,
                                                          this->sb,
-                                                         next_it->btree_ptr->start,
+                                                         next_it->btree_ptr,
                                                          this->fp))
     {
         next_it->btree_ptr = NULL;
@@ -622,9 +621,10 @@ const struct bch_btree_ptr_v2 *Bcachefs_iter_next_btree_ptr(const Bcachefs *this
 
 const struct bset *Bcachefs_iter_next_bset(const Bcachefs *this, Bcachefs_iterator *iter)
 {
-    struct btree_node *btree_node = iter->btree_node;
+    const struct btree_node *btree_node = iter->btree_node;
+    const void *btree_node_end = (const uint8_t*)iter->btree_node + iter->btree_ptr->sectors_written * BCH_SECTOR_SIZE;
     const struct bset *bset = iter->bset;
-    return benz_bch_next_bset(btree_node, bset, this->sb);
+    return benz_bch_next_bset(btree_node, btree_node_end, bset, this->sb);
 }
 
 Bcachefs_extent Bcachefs_iter_make_extent(const Bcachefs *this, Bcachefs_iterator *iter)

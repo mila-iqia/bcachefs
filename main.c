@@ -33,7 +33,7 @@ int main()
     benz_print_hex(((const uint8_t*)&jset_magic) + 4, 4);
     printf("\n");
     printf("jset_magic:%llu\n", jset_magic);
-    
+
     Bcachefs_iterator bchfs_iter = {0};
     Bcachefs_iter(&bchfs, &bchfs_iter, BTREE_ID_extents);
     bch_val = Bcachefs_iter_next(&bchfs, &bchfs_iter);
@@ -73,7 +73,7 @@ int main()
         case KEY_TYPE_inline_data:
             printf("extent: i:%llu fo:%llu, o:%llu, s:%llu\n",
                    extent.inode, extent.file_offset, extent.offset, extent.size);
-            printf("d:[%s]\n", (const void*)bch_val);
+            printf("d:[%s]\n", (const uint8_t*)bch_val);
 
             printf("file: n:%s, t:%ld\n", fname, ftell(fp));
             fseek(fp, (long)extent.file_offset, SEEK_SET);

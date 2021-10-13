@@ -156,9 +156,11 @@ class Bcachefs:
             return
 
         for dirent in BcachefsIterDirEnt(self._filesystem):
-            self._inodes_ls[dirent.parent_inode].append(dirent)
             if dirent.is_dir:
                 self._inodes_ls.setdefault(dirent.inode, [])
+
+        for dirent in BcachefsIterDirEnt(self._filesystem):
+            self._inodes_ls[dirent.parent_inode].append(dirent)
             self._inodes_tree[(dirent.parent_inode, dirent.name)] = dirent
 
         for extent in BcachefsIterExtent(self._filesystem):
