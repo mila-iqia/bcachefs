@@ -6,7 +6,7 @@ import bcachefs as bchfs
 from bcachefs import Bcachefs
 
 
-MINI = "testdata/mini_Bcachefs.img"
+MINI = "testdata/mini_bcachefs.img"
 LINKS = "testdata/dataset_img"
 
 TEST_ARCHIVE = [MINI, LINKS]
