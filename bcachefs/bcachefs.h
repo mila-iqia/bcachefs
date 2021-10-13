@@ -689,12 +689,12 @@ static inline uint64_t __bset_magic(struct bch_sb *sb)
     return __bch2_sb_magic(sb) ^ BSET_MAGIC;
 }
 
-static const struct uuid BCACHE_MAGIC = {
+static const struct uuid BCACHE_MAGIC = {{
     0xc6, 0x85, 0x73, 0xf6,
     0x4e, 0x1a,
     0x45, 0xca,
     0x82, 0x65,
-    0xf5, 0x7f, 0x48, 0xba, 0x6d, 0x81};
+    0xf5, 0x7f, 0x48, 0xba, 0x6d, 0x81}};
 
 const void *benz_bch_next_sibling(const void *p, uint32_t sizeof_p, const void *p_end, const void *c, struct u64s_spec u64s_spec);
 
@@ -757,6 +757,7 @@ typedef struct {
     uint64_t inode;
     uint8_t type;
     const uint8_t *name;
+    const uint8_t name_len;
 } Bcachefs_dirent;
 
 int Bcachefs_fini(Bcachefs *this);

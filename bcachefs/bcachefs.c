@@ -657,12 +657,16 @@ Bcachefs_dirent Bcachefs_iter_make_dirent(const Bcachefs *this, Bcachefs_iterato
     {
         iter = iter->next_it;
     }
-    const struct bkey_local bkey_local = benz_bch_parse_bkey(iter->bkey, &iter->btree_node->format);
+    const struct bkey *bkey = iter->bkey;
+    const struct bkey_local bkey_local = benz_bch_parse_bkey(bkey, &iter->btree_node->format);
     const struct bch_dirent *bch_dirent = (const void*)iter->bch_val;
+    const uint8_t name_len = strlen((const void*)bch_dirent->d_name);
+    const uint8_t max_name_len = (const uint8_t*)bkey + bkey->u64s * BCH_U64S_SIZE - bch_dirent->d_name;
     return (Bcachefs_dirent){.parent_inode = bkey_local.p.inode,
                                   .inode = bch_dirent->d_inum,
                                   .type = bch_dirent->d_type,
-                                  .name = bch_dirent->d_name};
+                                  .name = bch_dirent->d_name,
+                                  .name_len = (name_len < max_name_len ? name_len : max_name_len)};
 }
 
 inline uint64_t benz_get_flag_bits(const uint64_t bitfield, uint8_t first_bit, uint8_t last_bit)
