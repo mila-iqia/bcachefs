@@ -1,7 +1,7 @@
 import os
 
 import bcachefs.bcachefs as bchfs
-from bcachefs import BCacheFS
+from bcachefs import Bcachefs
 
 
 MINI = "testdata/mini_bcachefs.img"
