@@ -25,16 +25,14 @@ jobs:
 
       - name: Install
         run: |
-          python setup.py -coverage install
+          python setup.py -coverage develop
 
       - name: Tests
-        run: |
-          pytest tests
-          curl https://keybase.io/codecovsecurity/pgp_keys.asc | gpg --import # One-time step 
-          curl -Os https://uploader.codecov.io/latest/linux/codecov 
-          curl -Os https://uploader.codecov.io/latest/linux/codecov.SHA256SUM 
-          curl -Os https://uploader.codecov.io/latest/linux/codecov.SHA256SUM.sig 
-          gpg --verify codecov.SHA256SUM.sig codecov.SHA256SUM 
-          shasum -a 256 -c codecov.SHA256SUM 
-          chmod +x codecov 
-          ./codecov -t ${CODECOV_TOKEN}
+        run: | 
+          COVERAGE_FILE=.coverage_py.xml coverage run --parallel-mode -m pytest tests/
+          gcovr -r . -x -o .coverage_c.xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v2
+        with:
+          files: .coverage_c.xml, .coverage_py.xml

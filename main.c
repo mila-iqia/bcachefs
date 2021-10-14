@@ -4,14 +4,13 @@
 
 #include "bcachefs/bcachefs.h"
 
-
 #define MINI "testdata/mini_bcachefs.img"
-#define LINKS "testdata/dataset_img"
+
 
 int main()
 {
     Bcachefs bchfs = {0};
-    if (Bcachefs_open(&bchfs, LINKS)) {}
+    if (Bcachefs_open(&bchfs, MINI)) {}
     else
     {
         return 1;

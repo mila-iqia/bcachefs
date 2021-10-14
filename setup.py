@@ -15,7 +15,6 @@ if '-coverage' in sys.argv:
     extra_compile_args=["-coverage", "-g3", "-O0"]
     libraries=["gcov"]
 
-
 bcachefs_module = Extension(
     name="bcachefs.c_bcachefs",
     sources=["bcachefs/bcachefs.c",
