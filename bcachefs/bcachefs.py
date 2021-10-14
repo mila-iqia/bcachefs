@@ -10,6 +10,7 @@ from bcachefs.c_bcachefs import PyBcachefs as _Bcachefs, \
     PyBcachefs_iterator as _Bcachefs_iterator
 
 EXTENT_TYPE = 0
+INODE_TYPE = 1
 DIRENT_TYPE = 2
 
 DIR_TYPE = 4
@@ -21,6 +22,12 @@ class Extent:
     inode: int = 0
     file_offset: int = 0
     offset: int = 0
+    size: int = 0
+
+
+@dataclass
+class Inode:
+    inode: int = 0
     size: int = 0
 
 
@@ -56,6 +63,7 @@ class Bcachefs:
         self._extents_map = {}
         self._inodes_ls = {ROOT_DIRENT.inode: []}
         self._inodes_tree = {}
+        self._inode_map = {}
 
     def __enter__(self):
         self.open()
@@ -131,14 +139,24 @@ class Bcachefs:
         if isinstance(inode, str):
             inode = self.find_dirent(inode).inode
         extents = self._extents_map[inode]
-        file_size = 0
+        file_size = self._inode_map[inode]
+
+        size_check = 0
         for extent in extents:
-            file_size += extent.size
+            size_check += extent.size
+
+        assert size_check > file_size
+
         _bytes = np.empty(file_size, dtype="<u1")
+
         for extent in extents:
             self._file.seek(extent.offset)
-            self._file.readinto(_bytes[extent.file_offset:
-                                       extent.file_offset+extent.size])
+
+            start = extent.file_offset
+            end = min(extent.file_offset+extent.size, file_size)
+
+            self._file.readinto(_bytes[start:end])
+        
         return _bytes.data
 
     def walk(self, top: str = None):
@@ -169,6 +187,10 @@ class Bcachefs:
 
         for parent_inode, ls in self._inodes_ls.items():
             self._inodes_ls[parent_inode] = self._unique_dirent_list(ls)
+
+        for inode in BcachefsIterInode(self._filesystem):
+            print(inode)
+            self._inode_map[inode.inode] = inode.size
 
     def _walk(self, dirpath: str, dirent: DirEnt):
         dirs = [ent for ent in self._inodes_ls[dirent.inode]
@@ -263,3 +285,11 @@ class BcachefsIterDirEnt(BcachefsIter):
 
     def __next__(self):
         return DirEnt(*super(BcachefsIterDirEnt, self).__next__())
+
+
+class BcachefsIterInode(BcachefsIter):
+    def __init__(self, fs: _Bcachefs):
+        super(BcachefsIterInode, self).__init__(fs, INODE_TYPE)
+
+    def __next__(self):
+        return Inode(*super(BcachefsIterInode, self).__next__())

@@ -211,3 +211,4 @@ dmypy.json
 /tmp/
 /venv/
 *.out
+.vscode/

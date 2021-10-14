@@ -7,15 +7,117 @@
 #define MINI "testdata/mini_bcachefs.img"
 
 
-int main()
+void iterate_over_dirents(Bcachefs* bchfs);
+void iterate_over_extends(Bcachefs* bchfs);
+void iterate_over_inodes(Bcachefs* bchfs);
+
+void show_info(Bcachefs* bchfs);
+
+
+// FLAG(name, default)
+#define FLAGS(FLAG)\
+    FLAG(dirent, 0)\
+    FLAG(extent, 0)\
+    FLAG(inode, 0)\
+    FLAG(info, 0)
+
+struct Flags {
+#define ATTR(name, default)\
+    int name;
+
+FLAGS(ATTR)
+
+#undef ATTR
+};
+
+struct Flags flags;
+
+void parse_args(int argc, const char* argv[]) {
+    #define SET_DEFAULT(name, default)\
+        flags.name = default;
+    
+    FLAGS(SET_DEFAULT)
+
+    #undef SET_DEFAULT
+
+    for(int i = 0; i < argc; i++){
+        #define CHECK(name, default)\
+            if (strcmp(#name, argv[i]) == 0) { flags.name = 1; }
+
+        FLAGS(CHECK)
+        #undef CHECK
+    }
+}
+
+int main(int argc, const char* argv[])
 {
+    const char* filename = MINI;
+
+    if (argc > 1) {
+        filename = argv[argc - 1];
+    }
+    parse_args(argc - 1, argv);
+
     Bcachefs bchfs = {0};
-    if (Bcachefs_open(&bchfs, MINI)) {}
-    else
-    {
+    if (!Bcachefs_open(&bchfs, filename)) {
+        printf("File not found\n");
         return 1;
     }
-    struct bch_sb *sb = bchfs.sb;
+
+    if (flags.info) {
+        show_info(&bchfs);
+    }
+
+    if (flags.inode) {
+       iterate_over_inodes(&bchfs);
+    }
+
+    if (flags.extent) {
+       iterate_over_extends(&bchfs);
+    }
+
+    if (flags.dirent) {
+       iterate_over_dirents(&bchfs);
+    }
+
+    return 0;
+}
+
+
+void iterate_over_inodes(Bcachefs* bchfs) {
+    Bcachefs_iterator bchfs_iter = {0};
+    Bcachefs_iter(&bchfs, &bchfs_iter, BTREE_ID_inodes);
+    const struct bch_val * bch_val = Bcachefs_iter_next(bchfs, &bchfs_iter);
+
+    for (; bch_val; bch_val = Bcachefs_iter_next(&bchfs, &bchfs_iter))
+    {
+        Bcachefs_inode inode = Bcachefs_iter_make_inode(&bchfs, &bchfs_iter);
+        printf("inode: i:%llu, s:%llu\n", inode.inode, inode.size);
+    }
+    Bcachefs_iter_fini(&bchfs, &bchfs_iter);
+    Bcachefs_fini(&bchfs);
+}
+
+void iterate_over_dirents(Bcachefs* bchfs) {
+    Bcachefs_iterator bchfs_iter = {0};
+    Bcachefs_iter(&bchfs, &bchfs_iter, BTREE_ID_dirents);
+    const struct bch_val * bch_val = Bcachefs_iter_next(bchfs, &bchfs_iter);
+
+    for (; bch_val; bch_val = Bcachefs_iter_next(&bchfs, &bchfs_iter))
+    {
+        Bcachefs_dirent dirent = Bcachefs_iter_make_dirent(&bchfs, &bchfs_iter);
+        printf("dirent: p:%llu, i:%llu, t:%u, %s\n",
+               dirent.parent_inode,
+               dirent.inode,
+               dirent.type,
+               dirent.name);
+    }
+    Bcachefs_iter_fini(&bchfs, &bchfs_iter);
+    Bcachefs_fini(&bchfs);
+}
+
+void show_info(Bcachefs* bchfs) {
+    struct bch_sb *sb = bchfs->sb;
     const struct bch_val *bch_val = NULL;
     const struct bch_btree_ptr_v2 *bch_btree_ptr = NULL;
     printf("sb_size: %llu\n", benz_bch_get_sb_size(sb));
@@ -36,11 +138,14 @@ int main()
     benz_print_hex(((const uint8_t*)&jset_magic) + 4, 4);
     printf("\n");
     printf("jset_magic:%llu\n", jset_magic);
+}
 
+
+void iterate_over_extends(Bcachefs* bchfs) {
     Bcachefs_iterator bchfs_iter = {0};
     Bcachefs_iter(&bchfs, &bchfs_iter, BTREE_ID_extents);
-    bch_val = Bcachefs_iter_next(&bchfs, &bchfs_iter);
-    bch_btree_ptr = NULL;
+    const struct bch_val * bch_val = Bcachefs_iter_next(bchfs, &bchfs_iter);
+    const struct bch_btree_ptr_v2 * bch_btree_ptr = NULL;
     for (; bch_val; bch_val = Bcachefs_iter_next(&bchfs, &bchfs_iter))
     {
         const struct bkey *bkey = bchfs_iter.bkey;
@@ -65,9 +170,9 @@ int main()
             printf("extent: i:%llu fo:%llu, o:%llu, s:%llu\n",
                    extent.inode, extent.file_offset, extent.offset, extent.size);
 
-            fseek(bchfs.fp, (long)extent.offset, SEEK_SET);
+            fseek(bchfs->fp, (long)extent.offset, SEEK_SET);
             uint8_t *bytes = malloc(extent.size);
-            fread(bytes, extent.size, 1, bchfs.fp);
+            fread(bytes, extent.size, 1, bchfs->fp);
             printf("file: n:%s, t:%ld\n", fname, ftell(fp));
             fseek(fp, (long)extent.file_offset, SEEK_SET);
             printf("file: n:%s, t:%ld\n", fname, ftell(fp));
@@ -87,18 +192,4 @@ int main()
         fclose(fp);
     }
     Bcachefs_iter_fini(&bchfs, &bchfs_iter);
-    Bcachefs_iter(&bchfs, &bchfs_iter, BTREE_ID_dirents);
-    bch_val = Bcachefs_iter_next(&bchfs, &bchfs_iter);
-    for (; bch_val; bch_val = Bcachefs_iter_next(&bchfs, &bchfs_iter))
-    {
-        Bcachefs_dirent dirent = Bcachefs_iter_make_dirent(&bchfs, &bchfs_iter);
-        printf("dirent: p:%llu, i:%llu, t:%u, %s\n",
-               dirent.parent_inode,
-               dirent.inode,
-               dirent.type,
-               dirent.name);
-    }
-    Bcachefs_iter_fini(&bchfs, &bchfs_iter);
-    Bcachefs_fini(&bchfs);
-    return 0;
 }

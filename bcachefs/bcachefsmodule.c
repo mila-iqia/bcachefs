@@ -199,7 +199,7 @@ static PyObject *PyBcachefs_iterator_next(PyBcachefs_iterator *self)
     }
     else if (bch_val && iter->type == BTREE_ID_inodes)
     {
-        BCacheFS_inode inode = BCacheFS_iter_make_inode(fs, iter);
+        Bcachefs_inode inode = Bcachefs_iter_make_inode(fs, iter);
         return Py_BuildValue("KK", inode.inode, inode.size);
     }
     return Py_None;
