@@ -182,7 +182,9 @@ class Bcachefs:
 
     @staticmethod
     def _unique_dirent_list(dirent_ls):
-        return list({ent.inode: ent for ent in dirent_ls}.values())
+        # It's possible to have multiple inodes for a single file and this
+        # implemetation assumes that the last inode should be the correct one.
+        return list({ent.name: ent for ent in dirent_ls}.values())
 
 
 class Cursor(Bcachefs):
