@@ -5,13 +5,11 @@ import pytest
 import bcachefs as bchfs
 from bcachefs import Bcachefs
 
-
 MINI = "testdata/mini_bcachefs.img"
-LINKS = "testdata/dataset_img"
 
-TEST_ARCHIVE = [MINI, LINKS]
+TEST_IMAGES = [MINI]
 
-@pytest.mark.parametrize("archive", TEST_ARCHIVE)
+@pytest.mark.parametrize("archive", TEST_IMAGES)
 def test___enter__(archive):
     assert os.path.exists(archive)
     fs = Bcachefs(archive)
@@ -28,7 +26,7 @@ def test___enter__(archive):
         assert fs.size > 0
 
 
-@pytest.mark.parametrize("archive", TEST_ARCHIVE)
+@pytest.mark.parametrize("archive", TEST_IMAGES)
 def test___iter__(archive):
     assert os.path.exists(archive)
     with Bcachefs(archive) as fs:
@@ -50,7 +48,7 @@ def test___iter__(archive):
                 "subdir"]
 
 
-@pytest.mark.parametrize("archive", TEST_ARCHIVE)
+@pytest.mark.parametrize("archive", TEST_IMAGES)
 def test_find_dirent(archive):
     assert os.path.exists(archive)
     with Bcachefs(archive) as fs:
@@ -70,7 +68,7 @@ def test_find_dirent(archive):
         assert subdir_dirent.name == "subdir"
 
 
-@pytest.mark.parametrize("archive", TEST_ARCHIVE)
+@pytest.mark.parametrize("archive", TEST_IMAGES)
 def test_ls(archive):
     assert os.path.exists(archive)
     with Bcachefs(archive) as fs:
@@ -90,7 +88,7 @@ def test_ls(archive):
         assert ls == ["n04467665_63788.JPEG"]
 
 
-@pytest.mark.parametrize("archive", TEST_ARCHIVE)
+@pytest.mark.parametrize("archive", TEST_IMAGES)
 def test_read_file(archive):
     assert os.path.exists(archive)
     with Bcachefs(archive) as fs:
@@ -102,7 +100,7 @@ def test_read_file(archive):
                b"File content 2\n\0"
 
 
-@pytest.mark.parametrize("archive", TEST_ARCHIVE)
+@pytest.mark.parametrize("archive", TEST_IMAGES)
 def test_walk(archive):
     assert os.path.exists(archive)
     with Bcachefs(archive) as fs:
@@ -123,7 +121,7 @@ def test_walk(archive):
         assert dir_walk[1] == subdir_walk[0]
 
 
-@pytest.mark.parametrize("archive", TEST_ARCHIVE)
+@pytest.mark.parametrize("archive", TEST_IMAGES)
 def test_cursor___iter__(archive):
     assert os.path.exists(archive)
     with Bcachefs(archive) as fs, \
@@ -134,7 +132,7 @@ def test_cursor___iter__(archive):
         assert sorted([ent.name for ent in cursor]) == ["file2",  "subdir"]
 
 
-@pytest.mark.parametrize("archive", TEST_ARCHIVE)
+@pytest.mark.parametrize("archive", TEST_IMAGES)
 def test_cursor_cd(archive):
     assert os.path.exists(archive)
     with Bcachefs(archive).cd() as cursor:
@@ -149,7 +147,7 @@ def test_cursor_cd(archive):
         assert cursor.pwd == "/"
 
 
-@pytest.mark.parametrize("archive", TEST_ARCHIVE)
+@pytest.mark.parametrize("archive", TEST_IMAGES)
 def test_cursor_find_dirent(archive):
     assert os.path.exists(archive)
     with Bcachefs(archive) as fs, \
@@ -159,7 +157,7 @@ def test_cursor_find_dirent(archive):
                fs.find_dirent("dir/subdir/file2")
 
 
-@pytest.mark.parametrize("archive", TEST_ARCHIVE)
+@pytest.mark.parametrize("archive", TEST_IMAGES)
 def test_cursor_ls(archive):
     assert os.path.exists(archive)
     with Bcachefs(archive) as fs, \
@@ -170,7 +168,7 @@ def test_cursor_ls(archive):
         assert cursor.ls() == fs.ls()
 
 
-@pytest.mark.parametrize("archive", TEST_ARCHIVE)
+@pytest.mark.parametrize("archive", TEST_IMAGES)
 def test_cursor_walk(archive):
     assert os.path.exists(archive)
     with Bcachefs(archive) as fs, \
