@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-import bcachefs as bchfs
+import bcachefs.bcachefs as bchfs
 from bcachefs import Bcachefs
 
 MINI = "testdata/mini_bcachefs.img"
