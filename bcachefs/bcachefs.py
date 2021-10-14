@@ -6,8 +6,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from bcachefs.c_bcachefs import PyBCacheFS as _BCacheFS, \
-    PyBCacheFS_iterator as _BCacheFS_iterator
+from bcachefs.c_bcachefs import PyBcachefs as _Bcachefs, \
+    PyBcachefs_iterator as _Bcachefs_iterator
 
 EXTENT_TYPE = 0
 DIRENT_TYPE = 2
@@ -44,7 +44,7 @@ ROOT_DIRENT = DirEnt(0, 4096, DIR_TYPE, '/')
 LOSTFOUND_DIRENT = DirEnt(4096, 4097, DIR_TYPE, "lost+found")
 
 
-class BCacheFS:
+class Bcachefs:
     def __init__(self, path: str):
         self._path = path
         self._filesystem = None
@@ -86,7 +86,7 @@ class BCacheFS:
 
     def open(self):
         if self._closed:
-            self._filesystem = _BCacheFS()
+            self._filesystem = _Bcachefs()
             self._filesystem.open(self._path)
             self._size = self._filesystem.size
             self._file = open(self._path, "rb")
@@ -155,13 +155,15 @@ class BCacheFS:
         if self._extents_map:
             return
 
-        for dirent in BCacheFSIterDirEnt(self._filesystem):
-            self._inodes_ls[dirent.parent_inode].append(dirent)
+        for dirent in BcachefsIterDirEnt(self._filesystem):
             if dirent.is_dir:
                 self._inodes_ls.setdefault(dirent.inode, [])
+
+        for dirent in BcachefsIterDirEnt(self._filesystem):
+            self._inodes_ls[dirent.parent_inode].append(dirent)
             self._inodes_tree[(dirent.parent_inode, dirent.name)] = dirent
 
-        for extent in BCacheFSIterExtent(self._filesystem):
+        for extent in BcachefsIterExtent(self._filesystem):
             self._extents_map.setdefault(extent.inode, [])
             self._extents_map[extent.inode].append(extent)
 
@@ -183,13 +185,13 @@ class BCacheFS:
         return list({ent.inode: ent for ent in dirent_ls}.values())
 
 
-class Cursor(BCacheFS):
-    def __init__(self, path: [str, BCacheFS], extents_map: dict,
+class Cursor(Bcachefs):
+    def __init__(self, path: [str, Bcachefs], extents_map: dict,
                  inodes_ls: dict, inodes_tree: dict):
         if isinstance(path, str):
             super(Cursor, self).__init__(path)
         else:
-            path: BCacheFS
+            path: Bcachefs
             super(Cursor, self).__init__(path.path)
         self._extents_map = extents_map
         self._inodes_ls = inodes_ls
@@ -233,9 +235,9 @@ class Cursor(BCacheFS):
             return None
 
 
-class BCacheFSIter:
-    def __init__(self, fs: _BCacheFS, t: int = DIRENT_TYPE):
-        self._iter: _BCacheFS_iterator = fs.iter(t)
+class BcachefsIter:
+    def __init__(self, fs: _Bcachefs, t: int = DIRENT_TYPE):
+        self._iter: _Bcachefs_iterator = fs.iter(t)
 
     def __iter__(self):
         return self
@@ -247,17 +249,17 @@ class BCacheFSIter:
         return item
 
 
-class BCacheFSIterExtent(BCacheFSIter):
-    def __init__(self, fs: _BCacheFS):
-        super(BCacheFSIterExtent, self).__init__(fs, EXTENT_TYPE)
+class BcachefsIterExtent(BcachefsIter):
+    def __init__(self, fs: _Bcachefs):
+        super(BcachefsIterExtent, self).__init__(fs, EXTENT_TYPE)
 
     def __next__(self):
-        return Extent(*super(BCacheFSIterExtent, self).__next__())
+        return Extent(*super(BcachefsIterExtent, self).__next__())
 
 
-class BCacheFSIterDirEnt(BCacheFSIter):
-    def __init__(self, fs: _BCacheFS):
-        super(BCacheFSIterDirEnt, self).__init__(fs, DIRENT_TYPE)
+class BcachefsIterDirEnt(BcachefsIter):
+    def __init__(self, fs: _Bcachefs):
+        super(BcachefsIterDirEnt, self).__init__(fs, DIRENT_TYPE)
 
     def __next__(self):
-        return DirEnt(*super(BCacheFSIterDirEnt, self).__next__())
+        return DirEnt(*super(BcachefsIterDirEnt, self).__next__())
