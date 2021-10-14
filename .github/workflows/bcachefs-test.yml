@@ -1,0 +1,38 @@
+name: bchfs-tests
+
+on: [push]
+
+jobs:
+  bchfs-compile:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v1
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.8
+
+      - name: Install Requirements
+        run: |
+          git submodule update --init
+          pip install -r requirements.txt
+          pip install -r tests/requirements.txt
+
+      - name: Install
+        run: |
+          python setup.py -coverage develop
+
+      - name: Tests
+        run: | 
+          COVERAGE_FILE=.coverage_py.xml coverage run --parallel-mode -m pytest tests/
+          gcovr -r . -x -o .coverage_c.xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v2
+        with:
+          files: .coverage_c.xml, .coverage_py.xml
