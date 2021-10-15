@@ -40,7 +40,7 @@ int main()
     printf("jset_magic:%llu\n", jset_magic);
 
    
-    // Extends
+    // Extent
     // ----------------------------------------------------------------------------
     {
         Bcachefs_iterator bchfs_iter = {0};
