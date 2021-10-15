@@ -179,11 +179,11 @@ class Bcachefs:
             self._extents_map.setdefault(extent.inode, [])
             self._extents_map[extent.inode].append(extent)
 
-        for parent_inode, ls in self._inodes_ls.items():
-            self._inodes_ls[parent_inode] = self._unique_dirent_list(ls)
-
         for inode in BcachefsIterInode(self._filesystem):
             self._inode_map[inode.inode] = inode.size
+
+        for parent_inode, ls in self._inodes_ls.items():
+            self._inodes_ls[parent_inode] = self._unique_dirent_list(ls)
 
     def _walk(self, dirpath: str, dirent: DirEnt):
         dirs = [ent for ent in self._inodes_ls[dirent.inode]
