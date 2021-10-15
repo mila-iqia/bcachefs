@@ -5,6 +5,9 @@
 
 #include "bcachefs.h"
 
+#define LOG(fmt, ...) printf("%s:%d " fmt "\n", __FUNCTION__, __LINE__, __VA_ARGS__)
+#define DEBUG(...) LOG(__VA_ARGS__)
+
 // Our data structure structs are really just header of contiguous lists.  Most
 // of the time, the header always start with the size of full list in bytes
 //
@@ -98,10 +101,20 @@ const void *benz_bch_next_sibling(const void *p, uint32_t sizeof_p, const void *
 // == BCH_SB_FIELD_NR` then next field is returned
 const struct bch_sb_field *benz_bch_next_sb_field(const struct bch_sb *p, const struct bch_sb_field *c, enum bch_sb_field_type type)
 {
+    int i = 0;
     const uint8_t *p_end = (const uint8_t*)p + p->u64s * BCH_U64S_SIZE;
+    const uint8_t *p_start = (const uint8_t*)p + sizeof(*p);
+    int p_size = ((int)p_end - (int)p_start);
+
+    DEBUG("SBField Iterator (s: %p) (e: %p) (size: %d)", p_start, p_end, p_size);
     do
     {
         c = (const struct bch_sb_field*)benz_bch_next_sibling(p, sizeof(*p), p_end, c, U64S_BCH_SB_FIELD);
+
+        DEBUG("SBField %d: %p size: %lu", i, c, c->u64s * BCH_U64S_SIZE);
+        assert(c->u64s * BCH_U64S_SIZE < p_size && "Element size cannot be greater than its container");
+
+        i += 1;
     } while (c && type != BCH_SB_FIELD_NR && c->type != type);
     return c;
 }
@@ -484,6 +497,7 @@ int Bcachefs_close(Bcachefs *this)
 int Bcachefs_iter(const Bcachefs *this, Bcachefs_iterator *iter, enum btree_id type)
 {
     iter->type = type;
+    iter->jset_entry = NULL; 
     iter->btree_node = benz_bch_malloc_btree_node(this->sb);
     iter->jset_entry = Bcachefs_iter_next_jset_entry(this, iter);
     iter->btree_ptr = Bcachefs_iter_next_btree_ptr(this, iter);
@@ -644,10 +658,16 @@ const struct jset_entry *Bcachefs_iter_next_jset_entry(const Bcachefs *this, Bca
                 this->sb,
                 NULL,
                 BCH_SB_FIELD_clean);
+
+    // if sb_field_clean == NULL then the archive needs to be fsck
+    // TODO: we need to return an error here
+    assert(sb_field_clean != NULL);
     jset_entry = benz_bch_next_jset_entry(sb_field_clean,
                                           sizeof(struct bch_sb_field_clean),
                                           jset_entry,
                                           BCH_JSET_ENTRY_btree_root);
+    
+    assert(jset_entry != NULL);
     for (; jset_entry && jset_entry->btree_id != iter->type;
          jset_entry = benz_bch_next_jset_entry(sb_field_clean,
                                                sizeof(struct bch_sb_field_clean),

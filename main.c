@@ -51,6 +51,7 @@ void parse_args(int argc, const char* argv[]) {
 
 int main(int argc, const char* argv[])
 {
+    setbuf(stdout, NULL);
     const char* filename = MINI;
 
     if (argc > 1) {
