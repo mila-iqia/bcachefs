@@ -5,9 +5,6 @@
 
 #include "bcachefs.h"
 
-#define LOG(fmt, ...) printf("%s:%d " fmt "\n", __FUNCTION__, __LINE__, __VA_ARGS__)
-#define DEBUG(...) LOG(__VA_ARGS__)
-
 // Our data structure structs are really just header of contiguous lists.  Most
 // of the time, the header always start with the size of full list in bytes
 //
@@ -101,20 +98,10 @@ const void *benz_bch_next_sibling(const void *p, uint32_t sizeof_p, const void *
 // == BCH_SB_FIELD_NR` then next field is returned
 const struct bch_sb_field *benz_bch_next_sb_field(const struct bch_sb *p, const struct bch_sb_field *c, enum bch_sb_field_type type)
 {
-    int i = 0;
     const uint8_t *p_end = (const uint8_t*)p + p->u64s * BCH_U64S_SIZE;
-    const uint8_t *p_start = (const uint8_t*)p + sizeof(*p);
-    int p_size = ((int)p_end - (int)p_start);
-
-    DEBUG("SBField Iterator (s: %p) (e: %p) (size: %d)", p_start, p_end, p_size);
     do
     {
         c = (const struct bch_sb_field*)benz_bch_next_sibling(p, sizeof(*p), p_end, c, U64S_BCH_SB_FIELD);
-
-        DEBUG("SBField %d: %p size: %lu", i, c, c->u64s * BCH_U64S_SIZE);
-        assert(c->u64s * BCH_U64S_SIZE < p_size && "Element size cannot be greater than its container");
-
-        i += 1;
     } while (c && type != BCH_SB_FIELD_NR && c->type != type);
     return c;
 }
@@ -278,9 +265,19 @@ struct bkey_local benz_bch_parse_bkey(const struct bkey *bkey, const struct bkey
 #pragma GCC push_options
 #pragma GCC optimize ("O2")
 
-#define benz_getle32(a, b) a
+static uint32_t benz_getle32(const void* p, int64_t off){
+    uint32_t x;
+    memcpy(&x, (char*)p+off, sizeof(x));
+    return x;
+}
+
+static uint64_t benz_getle64(const void* p, int64_t off){
+    uint64_t x;
+    memcpy(&x, (char*)p+off, sizeof(x));
+    return x;
+}
+
 #define luai_unlikely(x) x
-#define benz_getle64(x, b) *(x + b)
 
 unsigned benz_ctz64(uint64_t x){
     return x ? __builtin_ctzll(x) : 64;
@@ -297,17 +294,18 @@ int   benz_bch_inode_unpack_size(uint64_t*               bi_size,
     const uint8_t* r = (const uint8_t*)&p->fields;
 
     *bi_size = 0;/* Default is 0. */
-    if(e<r)
+    if(e<r) 
         return -1;/* Parse error, end pointer behind field pointer! */
 
     bi_flags   = benz_getle32(&p->bi_flags, 0);
     nr_fields  = (int)(bi_flags >> 24) & 127;
     new_varint = !!(bi_flags & BCH_INODE_FLAG_new_varint);
-
+ 
     if(!new_varint)
-        return -1;/* Parse error, old-style varint! */
+        return -2;/* Parse error, old-style varint! */
+    
     if(e-r < (ptrdiff_t)nr_fields)
-        return -1;/* Parse error, end pointer far too short! At least 1 byte/field. */
+        return -3;/* Parse error, end pointer far too short! At least 1 byte/field. */
 
     /**
      * The field bi_size is the 5th field and 9th varint in a v2-packed inode,
@@ -318,13 +316,13 @@ int   benz_bch_inode_unpack_size(uint64_t*               bi_size,
      */
 
     if(nr_fields < 5)
-        return  0;/* No size field encoded, default is 0. */
+        return  -4;/* No size field encoded, default is 0. */
 
     for(varintc=0; varintc<9; varintc++){
         f  = benz_ctz64(*r+1)+1;
         r += f;
         if(luai_unlikely(r>e))
-            return -1;
+            return -5;
     }
 
     /**
@@ -453,6 +451,7 @@ int Bcachefs_fini(Bcachefs *this)
 
 int Bcachefs_open(Bcachefs *this, const char *path)
 {
+    // this assumes that the user zero initialized their Bcachefs
     if (!Bcachefs_close(this))
     {
         return 0;
@@ -660,7 +659,7 @@ const struct jset_entry *Bcachefs_iter_next_jset_entry(const Bcachefs *this, Bca
                 BCH_SB_FIELD_clean);
 
     // if sb_field_clean == NULL then the archive needs to be fsck
-    // TODO: we need to return an error here
+    // TODO: we need to return an error all the way back to python here
     assert(sb_field_clean != NULL);
     jset_entry = benz_bch_next_jset_entry(sb_field_clean,
                                           sizeof(struct bch_sb_field_clean),
@@ -762,7 +761,8 @@ Bcachefs_inode Bcachefs_iter_make_inode(const Bcachefs *this, Bcachefs_iterator 
     const void *p_end = (const void*)((const uint8_t*)bkey + bkey->u64s * BCH_U64S_SIZE);
 
     Bcachefs_inode inode = {0};
-    inode.inode = bkey_local.p.inode;
+    inode.inode = bkey_local.p.offset;
+
     benz_bch_inode_unpack_size(&inode.size, bch_inode, p_end);
     return inode;
 }

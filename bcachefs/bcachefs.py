@@ -141,12 +141,6 @@ class Bcachefs:
         extents = self._extents_map[inode]
         file_size = self._inode_map[inode]
 
-        size_check = 0
-        for extent in extents:
-            size_check += extent.size
-
-        assert size_check > file_size
-
         _bytes = np.empty(file_size, dtype="<u1")
 
         for extent in extents:
@@ -189,7 +183,6 @@ class Bcachefs:
             self._inodes_ls[parent_inode] = self._unique_dirent_list(ls)
 
         for inode in BcachefsIterInode(self._filesystem):
-            print(inode)
             self._inode_map[inode.inode] = inode.size
 
     def _walk(self, dirpath: str, dirent: DirEnt):
