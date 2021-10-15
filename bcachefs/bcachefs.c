@@ -622,8 +622,8 @@ const struct bch_val *Bcachefs_iter_next(const Bcachefs *this, Bcachefs_iterator
     bkey = iter->bkey;
     switch ((int)iter->type)
     {
-    case BTREE_ID_inodes:
     case BTREE_ID_extents:
+    case BTREE_ID_inodes:
     case BTREE_ID_dirents:
         iter->bch_val = bch_val;
         if (bch_val && bkey->type == KEY_TYPE_btree_ptr_v2 &&
