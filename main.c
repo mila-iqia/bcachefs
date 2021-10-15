@@ -7,8 +7,6 @@
 #define MINI "testdata/mini_bcachefs.img"
 
 
-void debug_extend();
-
 int main()
 {
     Bcachefs bchfs = {0};
