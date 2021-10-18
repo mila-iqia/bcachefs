@@ -96,12 +96,15 @@ int main()
         while (bch_val)
         {
             Bcachefs_dirent dirent = Bcachefs_iter_make_dirent(&bchfs, &bchfs_iter);
+            char fname[30] = {0};
+            memcpy(fname, dirent.name, dirent.name_len);
+
             printf("dirent %3d: p:%10llu, i:%10llu, t:%10u, %s\n",
                 i,
                 dirent.parent_inode,
                 dirent.inode,
                 dirent.type,
-                dirent.name);
+                fname);
 
             bch_val = Bcachefs_iter_next(&bchfs, &bchfs_iter);
             i += 1;

@@ -26,7 +26,7 @@ bcachefs_module = Extension(
 
 setup(
     name="bcachefs",
-    version="0.1.6",
+    version="0.1.7",
     author="Satya Ortiz-Gagné",
     url="",
     packages=find_packages(),
