@@ -757,7 +757,6 @@ typedef struct Bcachefs_iterator {
     struct Bcachefs_iterator *next_it;          //! pointer to the children btree node if iterating over nested Btrees
 } Bcachefs_iterator;
 
-
 //! Decoded value from the extend btree
 typedef struct {
     uint64_t inode;
