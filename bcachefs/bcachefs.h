@@ -189,8 +189,6 @@ enum bch_inode_flags{
     BCH_INODE_FLAG_backptr_untrusted = (1UL <<  8),
     BCH_INODE_FLAG_new_varint        = (1UL << 31),
 };
-
-
 struct u64s_spec {
     uint32_t size;  /* size in bytes of the u64s field */
     uint32_t start; /* should be added to the u64s field */
@@ -758,7 +756,6 @@ typedef struct Bcachefs_iterator {
     struct btree_node *btree_node;              //! current btree node
     struct Bcachefs_iterator *next_it;          //! pointer to the children btree node if iterating over nested Btrees
 } Bcachefs_iterator;
-
 
 //! Decoded value from the extend btree
 typedef struct {
