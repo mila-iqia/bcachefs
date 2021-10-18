@@ -495,8 +495,9 @@ int Bcachefs_close(Bcachefs *this)
 
 int Bcachefs_iter(const Bcachefs *this, Bcachefs_iterator *iter, enum btree_id type)
 {
+    *iter = (Bcachefs_iterator){0};
+
     iter->type = type;
-    iter->jset_entry = NULL; 
     iter->btree_node = benz_bch_malloc_btree_node(this->sb);
     iter->jset_entry = Bcachefs_iter_next_jset_entry(this, iter);
     iter->btree_ptr = Bcachefs_iter_next_btree_ptr(this, iter);
@@ -729,22 +730,6 @@ Bcachefs_extent Bcachefs_iter_make_extent(const Bcachefs *this, Bcachefs_iterato
     return extent;
 }
 
-Bcachefs_dirent Bcachefs_iter_make_dirent(const Bcachefs *this, Bcachefs_iterator *iter)
-{
-    (void)this;
-
-    while (iter->next_it)
-    {
-        iter = iter->next_it;
-    }
-    const struct bkey_local bkey_local = benz_bch_parse_bkey(iter->bkey, &iter->btree_node->format);
-    const struct bch_dirent *bch_dirent = (const void*)iter->bch_val;
-    return (Bcachefs_dirent){.parent_inode = bkey_local.p.inode,
-                                  .inode = bch_dirent->d_inum,
-                                  .type = bch_dirent->d_type,
-                                  .name = bch_dirent->d_name};
-}
-
 Bcachefs_inode Bcachefs_iter_make_inode(const Bcachefs *this, Bcachefs_iterator *iter)
 {
     (void)this;
@@ -767,6 +752,22 @@ Bcachefs_inode Bcachefs_iter_make_inode(const Bcachefs *this, Bcachefs_iterator 
     return inode;
 }
 
+
+Bcachefs_dirent Bcachefs_iter_make_dirent(const Bcachefs *this, Bcachefs_iterator *iter)
+{
+    (void)this;
+
+    while (iter->next_it)
+    {
+        iter = iter->next_it;
+    }
+    const struct bkey_local bkey_local = benz_bch_parse_bkey(iter->bkey, &iter->btree_node->format);
+    const struct bch_dirent *bch_dirent = (const void*)iter->bch_val;
+    return (Bcachefs_dirent){.parent_inode = bkey_local.p.inode,
+                                  .inode = bch_dirent->d_inum,
+                                  .type = bch_dirent->d_type,
+                                  .name = bch_dirent->d_name};
+}
 
 inline uint64_t benz_get_flag_bits(const uint64_t bitfield, uint8_t first_bit, uint8_t last_bit)
 {
