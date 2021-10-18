@@ -751,8 +751,6 @@ Bcachefs_inode Bcachefs_iter_make_inode(const Bcachefs *this, Bcachefs_iterator 
     benz_bch_inode_unpack_size(&inode.size, bch_inode, p_end);
     return inode;
 }
-
-
 Bcachefs_dirent Bcachefs_iter_make_dirent(const Bcachefs *this, Bcachefs_iterator *iter)
 {
     (void)this;
