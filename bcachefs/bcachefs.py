@@ -174,6 +174,19 @@ class _BCacheFSFileBinary(io.BufferedIOBase):
 
 
 class BCacheFS:
+    """Open a BCacheFS image for reading
+
+    Examples
+    --------
+    >>> with BCacheFS('/path/to/image', 'r') as image:
+
+    ...     with image.open('file.txt', 'r') as f:
+    ...         string = f.read()
+
+    ...     with image.open('file.bin', 'rb') as f:
+    ...         bytes = f.read()
+
+    """
     def __init__(self, path: str, mode: str = 'r'):
         assert mode == 'r', 'Only reading is supported'
 
@@ -221,11 +234,24 @@ class BCacheFS:
 
         return io.TextIOWrapper(base, encoding)
 
+    def namelist(self):
+        """Returns a list of files contained by this archive
+
+        Notes
+        -----
+        Added for parity with Zipfile interface
+
+        """
+        files = []
+        for dirent in BcachefsIterDirEnt(self._filesystem):
+            files.append(dirent)
+        return files
+
     def __enter__(self):
         return self
 
     def __exit__(self, _type, _value, _traceback):
-        self._close()
+        self.close()
 
     def __iter__(self):
         return (ent for ent in self._inodes_tree.values())
@@ -256,7 +282,7 @@ class BCacheFS:
             self._closed = False
             self._parse()
 
-    def _close(self):
+    def close(self):
         if not self._closed:
             self._filesystem.close()
             self._filesystem = None
@@ -278,18 +304,8 @@ class BCacheFS:
                     break
         return dirent
 
-    def namelist(self):
-        """Returns a list of files contained by this archive
-
-        Notes
-        -----
-        Added for parity with Zipfile interface
-
-
-        """
-        return []
-
     def ls(self, path: [str, DirEnt] = None):
+        """Show the files inside a given directory"""
         if isinstance(path, DirEnt):
             parent = path
         elif not path:
@@ -302,18 +318,8 @@ class BCacheFS:
             return [parent]
 
     def read_file(self, inode: [str, int]) -> memoryview:
-        if isinstance(inode, str):
-            inode = self.find_dirent(inode).inode
-
-        extents = self._extents_map[inode]
-        file_size = self._inode_map[inode]
-
-        _bytes = np.empty(file_size, dtype="<u1")
-        for extent in extents:
-            self._file.seek(extent.offset)
-            self._file.readinto(_bytes[extent.file_offset:
-                                       extent.file_offset+extent.size])
-        return _bytes.data
+        with self.open(inode) as f:
+            return f.readall()
 
     def walk(self, top: str = None):
         if not top:
