@@ -39,13 +39,143 @@ class DirEnt:
     def is_file(self):
         return self.type == FILE_TYPE
 
+    def __str__(self)
+        return self.name
+
 
 ROOT_DIRENT = DirEnt(0, 4096, DIR_TYPE, '/')
 LOSTFOUND_DIRENT = DirEnt(4096, 4097, DIR_TYPE, "lost+found")
 
 
-class Bcachefs:
-    def __init__(self, path: str):
+class _BCacheFSFileBinary(io.BufferedIOBase):
+    """"""
+    def __init__(self, name, extents, file, inode, size):
+        self.name = file
+        self._extents = extents
+        self._file = file
+        self._buffer = bytearray(8 * 512)
+        self._partial = False
+        self._inode = inode
+        self._pos = 0
+        self._size = size
+
+    def close(self):
+        self._extents = []
+        self._partial = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        pass
+
+    @property
+    def closed(self) -> bool:
+        return len(self._extents) == 0 and not self._partial
+
+    def fileno(self) -> int:
+        return self._inode
+
+    def read1(self, size: int) -> bytes:
+        """Read at most size bytes with at most one call to underlying stream"""
+        buffer = bytearray(size)
+        size = readinto1(b)
+        return buffer[:size].data
+
+    def readall(self) -> bytes:
+        """Most efficient way to read a file, single allocation"""
+
+        buffer = bytearray(self._size)
+        data = []
+
+        s = 0
+        e = 0
+
+        memory = memoryview(buffer)
+
+        for extent in self._extents:
+            s = e
+            e = s + extent.size
+
+            self._file.seek(extent.offset)
+            self._file.readinto(memory[s:e])
+
+        return buffer
+
+    def readinto1(self, b: memoryview) -> int:
+        """Read at most one extend"""
+        # finish reading a block if b was < block size
+        # or we had inline data
+        if self._partial:
+            n = len(self._buffer)
+            b[0:n] = self._buffer
+            self._partial = False
+            self._pos += n
+            return n
+
+        if not self._extents:
+            self.closed = self._closed()
+            return 0
+
+        extend = self._extents.pop()
+
+        self._file.seek(extent.offset)
+        self._file.readinto(self._buffer)
+
+        n = len(b)
+        if n < len(self._buffer):
+            b[0:n] = self._buffer[:n]
+            self._buffer = self._buffer[n:]
+            self._partial = True
+            return n
+
+        n = len(self._buffer)
+        b[:n] = self._buffer
+        self._partial = False
+        self._pos += n
+        return n
+
+    def readinto(self, b: memoryview) -> int:
+        return self.readinto1(b)
+
+    def isatty(self):
+        return False
+
+    @property
+    def readable(self):
+        return not self.closed()
+
+    @property
+    def seekable(self):
+        return False
+
+    def seek(self, offset, whence=io.SEEK_SET):
+        raise io.UnsupportedOperation
+
+    def tell(self):
+        return self._pos
+
+    def detach(self):
+        raise io.UnsupportedOperation
+
+    @property
+    def writable(self):
+        return False
+
+    def writelines(self, lines):
+        raise io.UnsupportedOperation
+
+    def write(self, b):
+        raise io.UnsupportedOperation
+
+    def flush(self):
+        pass
+
+
+class BCacheFS:
+    def __init__(self, path: str, mode: str = 'r'):
+        assert mode == 'r', 'Only reading is supported'
+
         self._path = path
         self._filesystem = None
         self._size = 0
@@ -56,13 +186,31 @@ class Bcachefs:
         self._extents_map = {}
         self._inodes_ls = {ROOT_DIRENT.inode: []}
         self._inodes_tree = {}
+        self._open()
+
+    def open(self, name: [str, int], mode: str = 'rb', encoding: str = 'utf-8'):
+        inode = name
+        if isinstance(name, str):
+            inode = self.find_dirent(name).inode
+
+        extents = self._extents_map[inode]
+        file_size = 0
+
+        for extent in extents:
+            file_size += extent.size
+
+        base =_BCacheFSFileBinary(name, extents, self._file, inode, file_size)
+
+        if 'b' in mode:
+            return base
+
+        return io.TextIOWrapper(base, encoding)
 
     def __enter__(self):
-        self.open()
         return self
 
     def __exit__(self, _type, _value, _traceback):
-        self.close()
+        self._close()
 
     def __iter__(self):
         return (ent for ent in self._inodes_tree.values())
@@ -84,7 +232,7 @@ class Bcachefs:
                         self._inodes_tree)
         return cursor.cd(path)
 
-    def open(self):
+    def _open(self):
         if self._closed:
             self._filesystem = _Bcachefs()
             self._filesystem.open(self._path)
@@ -93,7 +241,7 @@ class Bcachefs:
             self._closed = False
             self._parse()
 
-    def close(self):
+    def _close(self):
         if not self._closed:
             self._filesystem.close()
             self._filesystem = None
@@ -115,6 +263,17 @@ class Bcachefs:
                     break
         return dirent
 
+    def namelist(self):
+        """Returns a list of files contained by this archive
+
+        Notes
+        -----
+        Added for parity with Zipfile interface
+
+
+        """
+        return []
+
     def ls(self, path: [str, DirEnt] = None):
         if isinstance(path, DirEnt):
             parent = path
@@ -130,10 +289,13 @@ class Bcachefs:
     def read_file(self, inode: [str, int]) -> memoryview:
         if isinstance(inode, str):
             inode = self.find_dirent(inode).inode
+
         extents = self._extents_map[inode]
         file_size = 0
+
         for extent in extents:
             file_size += extent.size
+
         _bytes = np.empty(file_size, dtype="<u1")
         for extent in extents:
             self._file.seek(extent.offset)

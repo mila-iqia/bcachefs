@@ -18,8 +18,10 @@ def test___enter__(image):
     with fs:
         assert not fs.closed
         assert fs.size > 0
+
     assert fs.closed
     assert fs.size == 0
+
     del fs
     with Bcachefs(image) as fs:
         assert not fs.closed
@@ -88,16 +90,33 @@ def test_ls(image):
         assert ls == ["n04467665_63788.JPEG"]
 
 
-@pytest.mark.parametrize("image", TEST_IMAGES)
-def test_read_file(image):
-    assert os.path.exists(image)
-    with Bcachefs(image) as fs:
+def test_read_file():
+    assert os.path.exists("testdata/mini_bcachefs.img")
+
+    with BCacheFS("testdata/mini_bcachefs.img") as fs:
         inode = fs.find_dirent("file1").inode
         assert fs.read_file(inode) == b"File content 1\n\0"
+
         inode = fs.find_dirent("dir/subdir/file2").inode
+
         assert fs.read_file(inode) == b"File content 2\n\0"
-        assert fs.read_file("dir/subdir/file2") == \
-               b"File content 2\n\0"
+        assert fs.read_file("dir/subdir/file2") == b"File content 2\n\0"
+
+
+def test_open_file():
+    assert os.path.exists("testdata/mini_bcachefs.img")
+
+    with BCacheFS("testdata/mini_bcachefs.img") as fs:
+
+        inode = fs.find_dirent("file1").inode
+
+        assert not fs.closed
+
+        with fs.open(inode) as f:
+            assert f.readall() == b"File content 1\n\0"
+
+        with fs.open('dir/subdir/file2') as f:
+            assert f.readall() == b"File content 2\n\0"
 
 
 @pytest.mark.parametrize("image", TEST_IMAGES)
@@ -175,3 +194,4 @@ def test_cursor_walk(image):
             Bcachefs(image).cd() as cursor:
         cursor.cd("dir")
         assert list(cursor.walk("subdir")) == list(fs.walk("/dir/subdir"))
+
