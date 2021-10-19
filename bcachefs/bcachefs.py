@@ -48,10 +48,11 @@ LOSTFOUND_DIRENT = DirEnt(4096, 4097, DIR_TYPE, "lost+found")
 
 
 class _BCacheFSFileBinary(io.BufferedIOBase):
-    """"""
+    """Python file interface for BCachefs files"""
     def __init__(self, name, extents, file, inode, size):
         self.name = file
         self._extents = extents
+        self._extend_pos = 0
         self._file = file
         self._buffer = bytearray(8 * 512)
         self._partial = False
@@ -77,14 +78,13 @@ class _BCacheFSFileBinary(io.BufferedIOBase):
         return self._inode
 
     def read1(self, size: int) -> bytes:
-        """Read at most size bytes with at most one call to underlying stream"""
+        """Read at most size bytes with at most one call to the underlying stream"""
         buffer = bytearray(size)
         size = readinto1(b)
         return buffer[:size].data
 
     def readall(self) -> bytes:
         """Most efficient way to read a file, single allocation"""
-
         buffer = bytearray(self._size)
         data = []
 
@@ -113,11 +113,12 @@ class _BCacheFSFileBinary(io.BufferedIOBase):
             self._pos += n
             return n
 
-        if not self._extents:
+        if len(self._extents) >= self._extend_pos:
             self.closed = self._closed()
             return 0
 
-        extend = self._extents.pop()
+        extend = self._extents[self._extend_pos]
+        self._extend_pos += 1
 
         self._file.seek(extent.offset)
         self._file.readinto(self._buffer)
@@ -189,15 +190,29 @@ class BCacheFS:
         self._open()
 
     def open(self, name: [str, int], mode: str = 'rb', encoding: str = 'utf-8'):
+        """Open a file inside the image for reading
+
+        Parameters
+        ----------
+        name: str, int
+            Path to a file or inode integer
+
+        mode: str
+            reading mode rb (bytes) or r (string)
+
+        encoding: str
+            string encoding to use, defaults to utf-8
+        """
         inode = name
         if isinstance(name, str):
             inode = self.find_dirent(name).inode
 
-        extents = self._extents_map[inode]
-        file_size = 0
+        extents = self._extents_map.get(inode)
 
-        for extent in extents:
-            file_size += extent.size
+        if extents is None:
+            raise FileNotFoundError(f'{name} was not found')
+
+        file_size = self._inode_map[inode]
 
         base =_BCacheFSFileBinary(name, extents, self._file, inode, file_size)
 
@@ -291,10 +306,7 @@ class BCacheFS:
             inode = self.find_dirent(inode).inode
 
         extents = self._extents_map[inode]
-        file_size = 0
-
-        for extent in extents:
-            file_size += extent.size
+        file_size = self._inode_map[inode]
 
         _bytes = np.empty(file_size, dtype="<u1")
         for extent in extents:

@@ -194,4 +194,3 @@ def test_cursor_walk(image):
             Bcachefs(image).cd() as cursor:
         cursor.cd("dir")
         assert list(cursor.walk("subdir")) == list(fs.walk("/dir/subdir"))
-
