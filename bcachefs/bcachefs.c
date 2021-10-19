@@ -294,23 +294,23 @@ int   benz_bch_inode_unpack_size(uint64_t*               bi_size,
     const uint8_t* r = (const uint8_t*)&p->fields;
 
     *bi_size = 0;/* Default is 0. */
-    if(e<r) 
+    if(e<r)
         return -1;/* Parse error, end pointer behind field pointer! */
 
     bi_flags   = benz_getle32(&p->bi_flags, 0);
     nr_fields  = (int)(bi_flags >> 24) & 127;
     new_varint = !!(bi_flags & BCH_INODE_FLAG_new_varint);
- 
+
     if(!new_varint)
         return -2;/* Parse error, old-style varint! */
-    
+
     if(e-r < (ptrdiff_t)nr_fields)
         return -3;/* Parse error, end pointer far too short! At least 1 byte/field. */
 
     /**
      * The field bi_size is the 5th field and 9th varint in a v2-packed inode,
      * being preceded by four wide (double-varint) fields (the 96-bit timestamps).
-     * 
+     *
      * Accordingly, check that the number of fields is at least 5, and if so
      * then scan up to the 9th varint.
      */
@@ -451,11 +451,8 @@ int Bcachefs_fini(Bcachefs *this)
 
 int Bcachefs_open(Bcachefs *this, const char *path)
 {
-    // this assumes that the user zero initialized their Bcachefs
-    if (!Bcachefs_close(this))
-    {
-        return 0;
-    }
+    *this = (Bcachefs){0};
+
     int ret = 0;
     this->fp = fopen(path, "rb");
     if (this->fp)
@@ -666,7 +663,7 @@ const struct jset_entry *Bcachefs_iter_next_jset_entry(const Bcachefs *this, Bca
                                           sizeof(struct bch_sb_field_clean),
                                           jset_entry,
                                           BCH_JSET_ENTRY_btree_root);
-    
+
     assert(jset_entry != NULL);
     for (; jset_entry && jset_entry->btree_id != iter->type;
          jset_entry = benz_bch_next_jset_entry(sb_field_clean,
