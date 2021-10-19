@@ -145,12 +145,8 @@ class Bcachefs:
 
         for extent in extents:
             self._file.seek(extent.offset)
-
-            start = extent.file_offset
-            end = min(extent.file_offset+extent.size, file_size)
-
-            self._file.readinto(_bytes[start:end])
-        
+            self._file.readinto(_bytes[extent.file_offset:
+                                       extent.file_offset+extent.size])
         return _bytes.data
 
     def walk(self, top: str = None):
