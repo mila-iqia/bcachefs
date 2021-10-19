@@ -145,12 +145,8 @@ class Bcachefs:
 
         for extent in extents:
             self._file.seek(extent.offset)
-
-            start = extent.file_offset
-            end = min(extent.file_offset+extent.size, file_size)
-
-            self._file.readinto(_bytes[start:end])
-        
+            self._file.readinto(_bytes[extent.file_offset:
+                                       extent.file_offset+extent.size])
         return _bytes.data
 
     def walk(self, top: str = None):
@@ -179,11 +175,11 @@ class Bcachefs:
             self._extents_map.setdefault(extent.inode, [])
             self._extents_map[extent.inode].append(extent)
 
-        for parent_inode, ls in self._inodes_ls.items():
-            self._inodes_ls[parent_inode] = self._unique_dirent_list(ls)
-
         for inode in BcachefsIterInode(self._filesystem):
             self._inode_map[inode.inode] = inode.size
+
+        for parent_inode, ls in self._inodes_ls.items():
+            self._inodes_ls[parent_inode] = self._unique_dirent_list(ls)
 
     def _walk(self, dirpath: str, dirent: DirEnt):
         dirs = [ent for ent in self._inodes_ls[dirent.inode]
@@ -197,7 +193,9 @@ class Bcachefs:
 
     @staticmethod
     def _unique_dirent_list(dirent_ls):
-        return list({ent.inode: ent for ent in dirent_ls}.values())
+        # It's possible to have multiple inodes for a single file and this
+        # implemetation assumes that the last inode should be the correct one.
+        return list({ent.name: ent for ent in dirent_ls}.values())
 
 
 class Cursor(Bcachefs):
@@ -272,6 +270,14 @@ class BcachefsIterExtent(BcachefsIter):
         return Extent(*super(BcachefsIterExtent, self).__next__())
 
 
+class BcachefsIterInode(BcachefsIter):
+    def __init__(self, fs: _Bcachefs):
+        super(BcachefsIterInode, self).__init__(fs, INODE_TYPE)
+
+    def __next__(self):
+        return Inode(*super(BcachefsIterInode, self).__next__())
+
+
 class BcachefsIterDirEnt(BcachefsIter):
     def __init__(self, fs: _Bcachefs):
         super(BcachefsIterDirEnt, self).__init__(fs, DIRENT_TYPE)
@@ -279,10 +285,3 @@ class BcachefsIterDirEnt(BcachefsIter):
     def __next__(self):
         return DirEnt(*super(BcachefsIterDirEnt, self).__next__())
 
-
-class BcachefsIterInode(BcachefsIter):
-    def __init__(self, fs: _Bcachefs):
-        super(BcachefsIterInode, self).__init__(fs, INODE_TYPE)
-
-    def __next__(self):
-        return Inode(*super(BcachefsIterInode, self).__next__())
