@@ -6,8 +6,10 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from bcachefs.c_bcachefs import PyBcachefs as _Bcachefs, \
-    PyBcachefs_iterator as _Bcachefs_iterator
+from bcachefs.c_bcachefs import (
+    PyBcachefs as _Bcachefs,
+    PyBcachefs_iterator as _Bcachefs_iterator,
+)
 
 EXTENT_TYPE = 0
 DIRENT_TYPE = 2
@@ -40,7 +42,7 @@ class DirEnt:
         return self.type == FILE_TYPE
 
 
-ROOT_DIRENT = DirEnt(0, 4096, DIR_TYPE, '/')
+ROOT_DIRENT = DirEnt(0, 4096, DIR_TYPE, "/")
 LOSTFOUND_DIRENT = DirEnt(4096, 4097, DIR_TYPE, "lost+found")
 
 
@@ -51,7 +53,7 @@ class Bcachefs:
         self._size = 0
         self._file: [io.RawIOBase] = None
         self._closed = True
-        self._pwd = '/'             # Used in Cursor
+        self._pwd = "/"  # Used in Cursor
         self._dirent = ROOT_DIRENT  # Used in Cursor
         self._extents_map = {}
         self._inodes_ls = {ROOT_DIRENT.inode: []}
@@ -79,9 +81,10 @@ class Bcachefs:
     def closed(self) -> bool:
         return self._closed
 
-    def cd(self, path: str = '/'):
-        cursor = Cursor(self.path, self._extents_map, self._inodes_ls,
-                        self._inodes_tree)
+    def cd(self, path: str = "/"):
+        cursor = Cursor(
+            self.path, self._extents_map, self._inodes_ls, self._inodes_tree
+        )
         return cursor.cd(path)
 
     def open(self):
@@ -106,11 +109,10 @@ class Bcachefs:
         if not path:
             dirent = self._dirent
         else:
-            parts = [p for p in path.split('/') if p]
+            parts = [p for p in path.split("/") if p]
             dirent = self._dirent if not path.startswith("/") else ROOT_DIRENT
             while parts:
-                dirent = self._inodes_tree.get((dirent.inode, parts.pop(0)),
-                                               None)
+                dirent = self._inodes_tree.get((dirent.inode, parts.pop(0)), None)
                 if dirent is None:
                     break
         return dirent
@@ -137,8 +139,9 @@ class Bcachefs:
         _bytes = np.empty(file_size, dtype="<u1")
         for extent in extents:
             self._file.seek(extent.offset)
-            self._file.readinto(_bytes[extent.file_offset:
-                                       extent.file_offset+extent.size])
+            self._file.readinto(
+                _bytes[extent.file_offset : extent.file_offset + extent.size]
+            )
         return _bytes.data
 
     def walk(self, top: str = None):
@@ -171,10 +174,8 @@ class Bcachefs:
             self._inodes_ls[parent_inode] = self._unique_dirent_list(ls)
 
     def _walk(self, dirpath: str, dirent: DirEnt):
-        dirs = [ent for ent in self._inodes_ls[dirent.inode]
-                if ent.is_dir]
-        files = [ent for ent in self._inodes_ls[dirent.inode]
-                 if not ent.is_dir]
+        dirs = [ent for ent in self._inodes_ls[dirent.inode] if ent.is_dir]
+        files = [ent for ent in self._inodes_ls[dirent.inode] if not ent.is_dir]
         yield dirpath, dirs, files
         for d in dirs:
             for _ in self._walk(os.path.join(dirpath, d.name), d):
@@ -188,8 +189,13 @@ class Bcachefs:
 
 
 class Cursor(Bcachefs):
-    def __init__(self, path: [str, Bcachefs], extents_map: dict,
-                 inodes_ls: dict, inodes_tree: dict):
+    def __init__(
+        self,
+        path: [str, Bcachefs],
+        extents_map: dict,
+        inodes_ls: dict,
+        inodes_tree: dict,
+    ):
         if isinstance(path, str):
             super(Cursor, self).__init__(path)
         else:
@@ -211,19 +217,19 @@ class Cursor(Bcachefs):
     def pwd(self):
         return self._pwd
 
-    def cd(self, path: str = '/'):
+    def cd(self, path: str = "/"):
         if not path:
-            path = '/'
+            path = "/"
             _path = path
         elif path.startswith(".."):
-            pwd = self._pwd.split('/')
-            path = path.split('/')
+            pwd = self._pwd.split("/")
+            path = path.split("/")
             while pwd and path and path[0] == "..":
                 pwd.pop()
                 path.pop(0)
-            pwd = '/'.join(pwd)
+            pwd = "/".join(pwd)
             if not pwd:
-                pwd = '/'
+                pwd = "/"
             path = os.path.join(pwd, *path)
             _path = path
         else:

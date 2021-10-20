@@ -2,23 +2,22 @@
 from setuptools import Extension, find_packages, setup
 import sys
 
-extra_compile_args=[]
-libraries=[]
+extra_compile_args = []
+libraries = []
 
 # call python setup.py -coverage install to install with coverage enabled.
 # and debug symbols; coverage info will be generated in
 # bcachefs/build/temp.linux-x86_64-3.8/bcachefs/*.(gcda|gcno)
-if '-coverage' in sys.argv:
+if "-coverage" in sys.argv:
     print("Compiling with coverage")
-    sys.argv.remove('-coverage')
+    sys.argv.remove("-coverage")
 
-    extra_compile_args=["-coverage", "-g3", "-O0"]
-    libraries=["gcov"]
+    extra_compile_args = ["-coverage", "-g3", "-O0"]
+    libraries = ["gcov"]
 
 bcachefs_module = Extension(
     name="bcachefs.c_bcachefs",
-    sources=["bcachefs/bcachefs.c",
-             "bcachefs/bcachefsmodule.c"],
+    sources=["bcachefs/bcachefs.c", "bcachefs/bcachefsmodule.c"],
     include_dirs=["bcachefs/"],
     extra_compile_args=extra_compile_args,
     libraries=libraries,
