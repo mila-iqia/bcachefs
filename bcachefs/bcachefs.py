@@ -39,7 +39,7 @@ class DirEnt:
     def is_file(self):
         return self.type == FILE_TYPE
 
-    def __str__(self)
+    def __str__(self):
         return self.name
 
 
@@ -60,9 +60,10 @@ class _BCacheFSFileBinary(io.BufferedIOBase):
         self._pos = 0
         self._size = size
 
-    def close(self):
-        self._extents = []
-        self._partial = None
+    def reset(self):
+        # that could be seek start of file
+        self._partial = False
+        self._extend_pos = 0
 
     def __enter__(self):
         return self
@@ -72,7 +73,7 @@ class _BCacheFSFileBinary(io.BufferedIOBase):
 
     @property
     def closed(self) -> bool:
-        return len(self._extents) == 0 and not self._partial
+        return len(self._extents) == self._extend_pos and not self._partial
 
     def fileno(self) -> int:
         return self._inode
@@ -173,7 +174,7 @@ class _BCacheFSFileBinary(io.BufferedIOBase):
         pass
 
 
-class BCacheFS:
+class Bcachefs:
     """Open a BCacheFS image for reading
 
     Examples
