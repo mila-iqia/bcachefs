@@ -1,10 +1,9 @@
 /* Includes */
-#define  PY_SSIZE_T_CLEAN  /* So we get Py_ssize_t args. */
-#include <Python.h>        /* Because of "reasons", the Python header must be first. */
+#define PY_SSIZE_T_CLEAN /* So we get Py_ssize_t args. */
+#include <Python.h>      /* Because of "reasons", the Python header must be first. */
 
 #include "bcachefs.h"
 #include "bcachefsmodule.h"
-
 
 /* Python API Function Definitions */
 
@@ -33,7 +32,7 @@ static PyObject* PyBcachefs_new(PyTypeObject* type, PyObject* args, PyObject* kw
  * @brief
  */
 
-static PyObject *PyBcachefs_open(PyBcachefs *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+static PyObject* PyBcachefs_open(PyBcachefs* self, PyObject* const* args, Py_ssize_t nargs, PyObject* kwnames)
 {
     (void)kwnames;
     if (nargs != 1 || !Bcachefs_open(&self->_fs, (void*)PyUnicode_1BYTE_DATA(args[0])))
@@ -49,7 +48,7 @@ static PyObject *PyBcachefs_open(PyBcachefs *self, PyObject *const *args, Py_ssi
  * @brief
  */
 
-static PyObject *PyBcachefs_close(PyBcachefs *self)
+static PyObject* PyBcachefs_close(PyBcachefs* self)
 {
     if (!Bcachefs_close(&self->_fs))
     {
@@ -64,16 +63,17 @@ static PyObject *PyBcachefs_close(PyBcachefs *self)
  * @brief
  */
 
-static PyObject *PyBcachefs_iter(PyBcachefs *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+static PyObject* PyBcachefs_iter(PyBcachefs* self, PyObject* const* args, Py_ssize_t nargs, PyObject* kwnames)
 {
     (void)kwnames;
-    PyBcachefs_iterator *iter = (void*)PyObject_CallObject((PyObject*)&PyBcachefs_iteratorType, NULL);
+    PyBcachefs_iterator* iter = (void*)PyObject_CallObject((PyObject*)&PyBcachefs_iteratorType, NULL);
     if (iter)
     {
         Py_INCREF(self);
         iter->_pyfs = self;
     }
-    if (iter == NULL || nargs != 1 || !Bcachefs_iter(&iter->_pyfs->_fs, &iter->_iter, (enum btree_id)(int)PyLong_AsLong(args[0])))
+    if (iter == NULL || nargs != 1 ||
+        !Bcachefs_iter(&iter->_pyfs->_fs, &iter->_iter, (enum btree_id)(int)PyLong_AsLong(args[0])))
     {
         PyErr_SetString(PyExc_RuntimeError, "Error initializing Bcachefs iterator");
         Py_XDECREF(iter);
@@ -98,12 +98,12 @@ static PyObject* PyBcachefs_getsize(PyBcachefs* self, void* closure)
  */
 
 static PyMethodDef PyBcachefs_methods[] = {
-    {"open", (PyCFunction)(_PyCFunctionFastWithKeywords)PyBcachefs_open,
-     METH_FASTCALL | METH_KEYWORDS, "Open bcachefs file to read"},
+    {"open", (PyCFunction)(_PyCFunctionFastWithKeywords)PyBcachefs_open, METH_FASTCALL | METH_KEYWORDS,
+     "Open bcachefs file to read"},
     {"close", (PyCFunction)PyBcachefs_close, METH_NOARGS, "Close bcachefs file"},
-    {"iter", (PyCFunction)(_PyCFunctionFastWithKeywords)PyBcachefs_iter,
-     METH_FASTCALL | METH_KEYWORDS, "Iterate over entries of specified type"},
-    {NULL, NULL, 0, NULL}  /* Sentinel */
+    {"iter", (PyCFunction)(_PyCFunctionFastWithKeywords)PyBcachefs_iter, METH_FASTCALL | METH_KEYWORDS,
+     "Iterate over entries of specified type"},
+    {NULL, NULL, 0, NULL} /* Sentinel */
 };
 
 /**
@@ -111,49 +111,47 @@ static PyMethodDef PyBcachefs_methods[] = {
  */
 
 static PyGetSetDef PyBcachefs_getsetters[] = {
-    {"size", (getter)PyBcachefs_getsize, 0, "Size of the image file", NULL},
-    {NULL, NULL, 0, NULL, NULL}  /* Sentinel */
+    {"size", (getter)PyBcachefs_getsize, 0, "Size of the image file", NULL}, {NULL, NULL, 0, NULL, NULL} /* Sentinel */
 };
 
 static PyTypeObject PyBcachefsType = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    "benzina.c_bcachefs.Bcachefs",   /* tp_name */
-    sizeof(PyBcachefs),              /* tp_basicsize */
-    0,                               /* tp_itemsize */
-    (destructor)PyBcachefs_dealloc,  /* tp_dealloc */
-    0,                               /* tp_print */
-    0,                               /* tp_getattr */
-    0,                               /* tp_setattr */
-    0,                               /* tp_reserved */
-    0,                               /* tp_repr */
-    0,                               /* tp_as_number */
-    0,                               /* tp_as_sequence */
-    0,                               /* tp_as_mapping */
-    0,                               /* tp_hash  */
-    0,                               /* tp_call */
-    0,                               /* tp_str */
-    0,                               /* tp_getattro */
-    0,                               /* tp_setattro */
-    0,                               /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT,              /* tp_flags */
-    "Bcachefs object",               /* tp_doc */
-    0,                               /* tp_traverse */
-    0,                               /* tp_clear */
-    0,                               /* tp_richcompare */
-    0,                               /* tp_weaklistoffset */
-    0,                               /* tp_iter */
-    0,                               /* tp_iternext */
-    PyBcachefs_methods,              /* tp_methods */
-    0,                               /* tp_members */
-    PyBcachefs_getsetters,           /* tp_getset */
-    0,                               /* tp_base */
-    0,                               /* tp_dict */
-    0,                               /* tp_descr_get */
-    0,                               /* tp_descr_set */
-    0,                               /* tp_dictoffset */
-    0,                               /* tp_init */
-    0,                               /* tp_alloc */
-    PyBcachefs_new,                  /* tp_new */
+    PyVarObject_HEAD_INIT(NULL, 0) "benzina.c_bcachefs.Bcachefs", /* tp_name */
+    sizeof(PyBcachefs),                                           /* tp_basicsize */
+    0,                                                            /* tp_itemsize */
+    (destructor)PyBcachefs_dealloc,                               /* tp_dealloc */
+    0,                                                            /* tp_print */
+    0,                                                            /* tp_getattr */
+    0,                                                            /* tp_setattr */
+    0,                                                            /* tp_reserved */
+    0,                                                            /* tp_repr */
+    0,                                                            /* tp_as_number */
+    0,                                                            /* tp_as_sequence */
+    0,                                                            /* tp_as_mapping */
+    0,                                                            /* tp_hash  */
+    0,                                                            /* tp_call */
+    0,                                                            /* tp_str */
+    0,                                                            /* tp_getattro */
+    0,                                                            /* tp_setattro */
+    0,                                                            /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT,                                           /* tp_flags */
+    "Bcachefs object",                                            /* tp_doc */
+    0,                                                            /* tp_traverse */
+    0,                                                            /* tp_clear */
+    0,                                                            /* tp_richcompare */
+    0,                                                            /* tp_weaklistoffset */
+    0,                                                            /* tp_iter */
+    0,                                                            /* tp_iternext */
+    PyBcachefs_methods,                                           /* tp_methods */
+    0,                                                            /* tp_members */
+    PyBcachefs_getsetters,                                        /* tp_getset */
+    0,                                                            /* tp_base */
+    0,                                                            /* tp_dict */
+    0,                                                            /* tp_descr_get */
+    0,                                                            /* tp_descr_set */
+    0,                                                            /* tp_dictoffset */
+    0,                                                            /* tp_init */
+    0,                                                            /* tp_alloc */
+    PyBcachefs_new,                                               /* tp_new */
 };
 
 /**
@@ -182,11 +180,11 @@ static PyObject* PyBcachefs_iterator_new(PyTypeObject* type, PyObject* args, PyO
  * @brief
  */
 
-static PyObject *PyBcachefs_iterator_next(PyBcachefs_iterator *self)
+static PyObject* PyBcachefs_iterator_next(PyBcachefs_iterator* self)
 {
-    const Bcachefs *fs = &self->_pyfs->_fs;
-    Bcachefs_iterator *iter = &self->_iter;
-    const struct bch_val *bch_val = Bcachefs_iter_next(fs, iter);
+    const Bcachefs*       fs      = &self->_pyfs->_fs;
+    Bcachefs_iterator*    iter    = &self->_iter;
+    const struct bch_val* bch_val = Bcachefs_iter_next(fs, iter);
     if (bch_val && iter->type == BTREE_ID_extents)
     {
         Bcachefs_extent extent = Bcachefs_iter_make_extent(fs, iter);
@@ -195,7 +193,8 @@ static PyObject *PyBcachefs_iterator_next(PyBcachefs_iterator *self)
     else if (bch_val && iter->type == BTREE_ID_dirents)
     {
         Bcachefs_dirent dirent = Bcachefs_iter_make_dirent(fs, iter);
-        return Py_BuildValue("KKIU#", dirent.parent_inode, dirent.inode, (uint32_t)dirent.type, dirent.name, dirent.name_len);
+        return Py_BuildValue("KKIU#", dirent.parent_inode, dirent.inode, (uint32_t)dirent.type, dirent.name,
+                             dirent.name_len);
     }
     return Py_None;
 }
@@ -206,60 +205,59 @@ static PyObject *PyBcachefs_iterator_next(PyBcachefs_iterator *self)
 
 static PyMethodDef PyBcachefs_iterator_methods[] = {
     {"next", (PyCFunction)PyBcachefs_iterator_next, METH_NOARGS, "Iterate to next item"},
-    {NULL, NULL, 0, NULL}  /* Sentinel */
+    {NULL, NULL, 0, NULL} /* Sentinel */
 };
 
 static PyTypeObject PyBcachefs_iteratorType = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    "benzina.c_bcachefs.Bcachefs_iterator",   /* tp_name */
-    sizeof(PyBcachefs_iterator),     /* tp_basicsize */
-    0,                               /* tp_itemsize */
-    (destructor)PyBcachefs_iterator_dealloc,  /* tp_dealloc */
-    0,                               /* tp_print */
-    0,                               /* tp_getattr */
-    0,                               /* tp_setattr */
-    0,                               /* tp_reserved */
-    0,                               /* tp_repr */
-    0,                               /* tp_as_number */
-    0,                               /* tp_as_sequence */
-    0,                               /* tp_as_mapping */
-    0,                               /* tp_hash  */
-    0,                               /* tp_call */
-    0,                               /* tp_str */
-    0,                               /* tp_getattro */
-    0,                               /* tp_setattro */
-    0,                               /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT,              /* tp_flags */
-    "Bcachefs_iterator object",      /* tp_doc */
-    0,                               /* tp_traverse */
-    0,                               /* tp_clear */
-    0,                               /* tp_richcompare */
-    0,                               /* tp_weaklistoffset */
-    0,                               /* tp_iter */
-    0,                               /* tp_iternext */
-    PyBcachefs_iterator_methods,     /* tp_methods */
-    0,                               /* tp_members */
-    0,                               /* tp_getset */
-    0,                               /* tp_base */
-    0,                               /* tp_dict */
-    0,                               /* tp_descr_get */
-    0,                               /* tp_descr_set */
-    0,                               /* tp_dictoffset */
-    0,                               /* tp_init */
-    0,                               /* tp_alloc */
-    PyBcachefs_iterator_new,         /* tp_new */
+    PyVarObject_HEAD_INIT(NULL, 0) "benzina.c_bcachefs.Bcachefs_iterator", /* tp_name */
+    sizeof(PyBcachefs_iterator),                                           /* tp_basicsize */
+    0,                                                                     /* tp_itemsize */
+    (destructor)PyBcachefs_iterator_dealloc,                               /* tp_dealloc */
+    0,                                                                     /* tp_print */
+    0,                                                                     /* tp_getattr */
+    0,                                                                     /* tp_setattr */
+    0,                                                                     /* tp_reserved */
+    0,                                                                     /* tp_repr */
+    0,                                                                     /* tp_as_number */
+    0,                                                                     /* tp_as_sequence */
+    0,                                                                     /* tp_as_mapping */
+    0,                                                                     /* tp_hash  */
+    0,                                                                     /* tp_call */
+    0,                                                                     /* tp_str */
+    0,                                                                     /* tp_getattro */
+    0,                                                                     /* tp_setattro */
+    0,                                                                     /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT,                                                    /* tp_flags */
+    "Bcachefs_iterator object",                                            /* tp_doc */
+    0,                                                                     /* tp_traverse */
+    0,                                                                     /* tp_clear */
+    0,                                                                     /* tp_richcompare */
+    0,                                                                     /* tp_weaklistoffset */
+    0,                                                                     /* tp_iter */
+    0,                                                                     /* tp_iternext */
+    PyBcachefs_iterator_methods,                                           /* tp_methods */
+    0,                                                                     /* tp_members */
+    0,                                                                     /* tp_getset */
+    0,                                                                     /* tp_base */
+    0,                                                                     /* tp_dict */
+    0,                                                                     /* tp_descr_get */
+    0,                                                                     /* tp_descr_set */
+    0,                                                                     /* tp_dictoffset */
+    0,                                                                     /* tp_init */
+    0,                                                                     /* tp_alloc */
+    PyBcachefs_iterator_new,                                               /* tp_new */
 };
 
 static PyModuleDef c_bcachefs_module_def = {
     PyModuleDef_HEAD_INIT,
-    "c_bcachefs",          /* m_name */
-    "bcachefs C module",   /* m_doc */
-    -1,                    /* m_size */
-    NULL,                  /* m_methods */
-    NULL,                  /* m_reload */
-    NULL,                  /* m_traverse */
-    NULL,                  /* m_clear */
-    NULL,                  /* m_free */
+    "c_bcachefs",        /* m_name */
+    "bcachefs C module", /* m_doc */
+    -1,                  /* m_size */
+    NULL,                /* m_methods */
+    NULL,                /* m_reload */
+    NULL,                /* m_traverse */
+    NULL,                /* m_clear */
+    NULL,                /* m_free */
 };
 
 PyMODINIT_FUNC PyInit_c_bcachefs(void)
@@ -272,15 +270,19 @@ PyMODINIT_FUNC PyInit_c_bcachefs(void)
         return NULL;
     }
 
-    #define ADDTYPE(T)                                              \
-        do{                                                         \
-            if(PyType_Ready(&T##Type) < 0){return NULL;}            \
-            Py_INCREF(&T##Type);                                    \
-            PyModule_AddObject(module, #T, (PyObject*)&T##Type);    \
-        }while(0)
+#define ADDTYPE(T)                                           \
+    do                                                       \
+    {                                                        \
+        if (PyType_Ready(&T##Type) < 0)                      \
+        {                                                    \
+            return NULL;                                     \
+        }                                                    \
+        Py_INCREF(&T##Type);                                 \
+        PyModule_AddObject(module, #T, (PyObject*)&T##Type); \
+    } while (0)
     ADDTYPE(PyBcachefs);
     ADDTYPE(PyBcachefs_iterator);
-    #undef ADDTYPE
+#undef ADDTYPE
 
     return module;
 }
