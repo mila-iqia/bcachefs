@@ -93,11 +93,28 @@ def test_read_file(image):
     assert os.path.exists(image)
     with Bcachefs(image) as fs:
         inode = fs.find_dirent("file1").inode
-        assert fs.read_file(inode) == b"File content 1\n\0"
+        assert bytes(fs.read_file(inode)) == b"File content 1\n"
+
         inode = fs.find_dirent("dir/subdir/file2").inode
-        assert fs.read_file(inode) == b"File content 2\n\0"
-        assert fs.read_file("dir/subdir/file2") == \
-               b"File content 2\n\0"
+        assert fs.read_file(inode) == b"File content 2\n"
+        assert bytes(fs.read_file("dir/subdir/file2")) == b"File content 2\n"
+
+
+@pytest.mark.parametrize("image", TEST_IMAGES)
+def test_file_size(image):
+    assert os.path.exists(image)
+    with Bcachefs(image) as fs:
+        inode = fs.find_dirent("file1").inode
+
+        file_size = fs._inode_map.get(inode)
+        assert file_size, "file inode should be present"
+
+        extents = fs._extents_map[inode]
+        size_check = 0
+        for extent in extents:
+            size_check += extent.size
+
+        assert size_check - 1 == file_size, "sum of extends is equal to file_size (minus the null character)"
 
 
 @pytest.mark.parametrize("image", TEST_IMAGES)
