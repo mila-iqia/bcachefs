@@ -197,6 +197,17 @@ static PyObject *PyBcachefs_iterator_next(PyBcachefs_iterator *self)
         Bcachefs_dirent dirent = Bcachefs_iter_make_dirent(fs, iter);
         return Py_BuildValue("KKIU#", dirent.parent_inode, dirent.inode, (uint32_t)dirent.type, dirent.name, dirent.name_len);
     }
+    else if (bch_val && iter->type == BTREE_ID_inodes)
+    {
+        Bcachefs_inode inode = Bcachefs_iter_make_inode(fs, iter);
+        return Py_BuildValue("KK", inode.inode, inode.size);
+    }
+    else if (bch_val && iter->type == BTREE_ID_dirents)
+    {
+        Bcachefs_dirent dirent = Bcachefs_iter_make_dirent(fs, iter);
+        return Py_BuildValue("KKIU", dirent.parent_inode, dirent.inode, (uint32_t)dirent.type, dirent.name);
+    }
+
     return Py_None;
 }
 

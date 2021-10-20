@@ -10,6 +10,7 @@ from bcachefs.c_bcachefs import PyBcachefs as _Bcachefs, \
     PyBcachefs_iterator as _Bcachefs_iterator
 
 EXTENT_TYPE = 0
+INODE_TYPE = 1
 DIRENT_TYPE = 2
 
 DIR_TYPE = 4
@@ -21,6 +22,12 @@ class Extent:
     inode: int = 0
     file_offset: int = 0
     offset: int = 0
+    size: int = 0
+
+
+@dataclass
+class Inode:
+    inode: int = 0
     size: int = 0
 
 
@@ -201,32 +208,18 @@ class Bcachefs:
         self._extents_map = {}
         self._inodes_ls = {ROOT_DIRENT.inode: []}
         self._inodes_tree = {}
-        self._open()
+        self._inode_map = {}
 
     def open(self, name: [str, int], mode: str = 'rb', encoding: str = 'utf-8'):
-        """Open a file inside the image for reading
-
-        Parameters
-        ----------
-        name: str, int
-            Path to a file or inode integer
-
-        mode: str
-            reading mode rb (bytes) or r (string)
-
-        encoding: str
-            string encoding to use, defaults to utf-8
-        """
         inode = name
         if isinstance(name, str):
             inode = self.find_dirent(name).inode
 
-        extents = self._extents_map.get(inode)
+        extents = self._extents_map[inode]
+        file_size = 0
 
-        if extents is None:
-            raise FileNotFoundError(f'{name} was not found')
-
-        file_size = self._inode_map[inode]
+        for extent in extents:
+            file_size += extent.size
 
         base =_BCacheFSFileBinary(name, extents, self._file, inode, file_size)
 
@@ -237,16 +230,11 @@ class Bcachefs:
 
     def namelist(self):
         """Returns a list of files contained by this archive
-
         Notes
         -----
         Added for parity with Zipfile interface
-
         """
-        files = []
-        for dirent in BcachefsIterDirEnt(self._filesystem):
-            files.append(dirent)
-        return files
+        return []
 
     def __enter__(self):
         return self
@@ -348,6 +336,9 @@ class Bcachefs:
             self._extents_map.setdefault(extent.inode, [])
             self._extents_map[extent.inode].append(extent)
 
+        for inode in BcachefsIterInode(self._filesystem):
+            self._inode_map[inode.inode] = inode.size
+
         for parent_inode, ls in self._inodes_ls.items():
             self._inodes_ls[parent_inode] = self._unique_dirent_list(ls)
 
@@ -438,6 +429,14 @@ class BcachefsIterExtent(BcachefsIter):
 
     def __next__(self):
         return Extent(*super(BcachefsIterExtent, self).__next__())
+
+
+class BcachefsIterInode(BcachefsIter):
+    def __init__(self, fs: _Bcachefs):
+        super(BcachefsIterInode, self).__init__(fs, INODE_TYPE)
+
+    def __next__(self):
+        return Inode(*super(BcachefsIterInode, self).__next__())
 
 
 class BcachefsIterDirEnt(BcachefsIter):
