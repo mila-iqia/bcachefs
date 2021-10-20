@@ -288,4 +288,3 @@ class BcachefsIterDirEnt(BcachefsIter):
 
     def __next__(self):
         return DirEnt(*super(BcachefsIterDirEnt, self).__next__())
-
