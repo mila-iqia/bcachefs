@@ -111,21 +111,21 @@ class _BcachefsFileBinary(io.BufferedIOBase):
         if n == -1:
             return self.readall()
 
-        buffer = np.empty(n, dtype='<u1')
+        buffer = np.empty(n, dtype="<u1")
         view = memoryview(buffer)
         size = self.readinto(view)
         return bytes(buffer[:size])
 
     def read1(self, size: int) -> bytes:
         """Read at most size bytes with at most one call to the underlying stream"""
-        buffer = np.empty(size, dtype='<u1')
+        buffer = np.empty(size, dtype="<u1")
         view = memoryview(buffer)
         size = self.readinto1(view)
         return bytes(buffer[:size])
 
     def readall(self) -> bytes:
         """Most efficient way to read a file, single allocation"""
-        buffer = np.empty(self._size, dtype='<u1')
+        buffer = np.empty(self._size, dtype="<u1")
         memory = memoryview(buffer)
 
         for extent in self._extents:

@@ -12,8 +12,8 @@ from bcachefs.testing import filepath
 
 
 def pil_loader(file_object):
-    img = Image.open(file_object, 'r')
-    img = img.convert('RGB')
+    img = Image.open(file_object, "r")
+    img = img.convert("RGB")
     return img
 
 
@@ -119,7 +119,7 @@ def test_file_seek(offset):
         with fs.open(FILE) as saved:
             saved.seek(offset)
             data = saved.read(offset)
-            assert data == original_data[offset:offset * 2]
+            assert data == original_data[offset : offset * 2]
 
 
 def test_read_image():
