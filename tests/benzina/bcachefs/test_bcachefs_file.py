@@ -96,3 +96,16 @@ def test_file_readinto1(size):
             bcachefs_hash = sha.digest()
 
     assert original_hash == bcachefs_hash
+
+
+@pytest.mark.parametrize("offset", [1, 2, 4, 8, 16, 32, 1024, 2048])
+def test_file_seek(offset):
+    image = filepath(MINI)
+    assert os.path.exists(image)
+
+    with Bcachefs(image) as fs:
+        with fs.open(FILE) as saved:
+
+            saved.seek(offset)
+            data = saved.read(1)
+            assert data[0] == original_data[offset]

@@ -87,10 +87,31 @@ class _BCacheFSFileBinary(io.BufferedIOBase):
 
     @property
     def closed(self) -> bool:
-        return len(self._extents) == self._extent_pos and not self._partial
+        """return true if we finished reading the current file
+
+        Notes
+        -----
+        You can reuse the same file multiple time by calling `reset`
+
+        """
+        return self._extent_pos >= len(self._extents) and not self._view
 
     def fileno(self) -> int:
+        """returns the inode of the file inside bcachefs"""
         return self._inode
+
+    def read(self, n=-1) -> bytes:
+        if n == -1:
+            return self.readall()
+
+        buffer = bytearray(n)
+        view = memoryview(buffer)
+        size = self.readinto1(buffer)
+
+        while size < n and not self.closed:
+            size += self.readinto1(view[size:])
+
+        return buffer
 
     def read1(self, size: int) -> bytes:
         """Read at most size bytes with at most one call to the underlying stream"""
@@ -118,7 +139,14 @@ class _BCacheFSFileBinary(io.BufferedIOBase):
         return buffer
 
     def readinto1(self, b: memoryview) -> int:
-        """Read at most one extend"""
+        """Read at most one extend
+
+        Notes
+        -----
+        The size of the buffer is not checked against the extent size,
+        this means we could possibly read beyond the extent but the size returned
+        will be inside the bounds.
+        """
 
         # we ran out of extent, done
         if self._extent_pos >= len(self._extents):
@@ -164,7 +192,27 @@ class _BCacheFSFileBinary(io.BufferedIOBase):
         return False
 
     def seek(self, offset, whence=io.SEEK_SET):
-        raise io.UnsupportedOperation
+        if whence == io.SEEK_END:
+            return self.seek(self._size - offset, io.SEEK_SET)
+
+        if whence == io.SEEK_CUR:
+            return self.seek(self._pos + offset, io.SEEK_SET)
+
+        if whence == io.SEEK_SET:
+            self.reset()
+
+            e = 0
+            for i, extent in enumerate(self._extents):
+                s = e
+                e = s + extent.size
+
+                if s < offset < e:
+                    self._extent_pos = i
+                    self._extent_read = offset - s
+                    self._pos = offset
+                    break
+
+            return offset
 
     def tell(self):
         return self._pos
