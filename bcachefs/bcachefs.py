@@ -56,8 +56,8 @@ ROOT_DIRENT = DirEnt(0, 4096, DIR_TYPE, "/")
 LOSTFOUND_DIRENT = DirEnt(4096, 4097, DIR_TYPE, "lost+found")
 
 
-class _BCacheFSFileBinary(io.BufferedIOBase):
-    """Python file interface for BCachefs files"""
+class _BcachefsFileBinary(io.BufferedIOBase):
+    """Python file interface for Bcachefs files"""
 
     def __init__(self, name, extents, file, inode, size):
         self.name = file
@@ -79,8 +79,6 @@ class _BCacheFSFileBinary(io.BufferedIOBase):
         self._pos = 0  # absolute position inside the file
 
     def reset(self):
-        # that could be seek start of file
-        self._partial = False
         self._extent_pos = 0
 
     def __enter__(self):
@@ -177,7 +175,7 @@ class _BCacheFSFileBinary(io.BufferedIOBase):
         return read
 
     def readinto(self, b: memoryview) -> int:
-        """Read until the buffer is filled"""
+        """Read until the buffer is full"""
         n = len(b)
         size = self.readinto1(b)
 
@@ -200,7 +198,7 @@ class _BCacheFSFileBinary(io.BufferedIOBase):
 
     def seek(self, offset, whence=io.SEEK_SET):
         if whence == io.SEEK_END:
-            return self.seek(self._size - offset, io.SEEK_SET)
+            return self.seek(self._size + offset, io.SEEK_SET)
 
         if whence == io.SEEK_CUR:
             return self.seek(self._pos + offset, io.SEEK_SET)
@@ -248,16 +246,13 @@ class Bcachefs:
     --------
     >>> with BCacheFS('/path/to/image', 'r') as image:
 
-    ...     with image.open('file.txt', 'r') as f:
-    ...         string = f.read()
-
     ...     with image.open('file.bin', 'rb') as f:
     ...         bytes = f.read()
 
     """
 
-    def __init__(self, path: str, mode: str = "r"):
-        assert mode == "r", "Only reading is supported"
+    def __init__(self, path: str, mode: str = "rb"):
+        assert mode in ("r", "rb"), "Only reading is supported"
 
         self._path = path
         self._filesystem = None
@@ -281,7 +276,7 @@ class Bcachefs:
             Path to a file or inode integer
 
         mode: str
-            reading mode rb (bytes) or r (string)
+            reading mode rb (bytes)
 
         encoding: str
             string encoding to use, defaults to utf-8
@@ -296,15 +291,12 @@ class Bcachefs:
             raise FileNotFoundError(f"{name} was not found")
 
         file_size = self._inode_map[inode]
-        base = _BCacheFSFileBinary(name, extents, self._file, inode, file_size)
-
-        if "b" in mode:
-            return base
-
-        return io.TextIOWrapper(base, encoding)
+        base = _BcachefsFileBinary(name, extents, self._file, inode, file_size)
+        return base
 
     def namelist(self):
         """Returns a list of files contained by this archive
+
         Notes
         -----
         Added for parity with Zipfile interface
