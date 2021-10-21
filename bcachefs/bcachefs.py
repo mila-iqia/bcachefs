@@ -6,8 +6,10 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from bcachefs.c_bcachefs import PyBcachefs as _Bcachefs, \
-    PyBcachefs_iterator as _Bcachefs_iterator
+from bcachefs.c_bcachefs import (
+    PyBcachefs as _Bcachefs,
+    PyBcachefs_iterator as _Bcachefs_iterator,
+)
 
 EXTENT_TYPE = 0
 DIRENT_TYPE = 2
@@ -43,12 +45,13 @@ class DirEnt:
         return self.name
 
 
-ROOT_DIRENT = DirEnt(0, 4096, DIR_TYPE, '/')
+ROOT_DIRENT = DirEnt(0, 4096, DIR_TYPE, "/")
 LOSTFOUND_DIRENT = DirEnt(4096, 4097, DIR_TYPE, "lost+found")
 
 
 class _BCacheFSFileBinary(io.BufferedIOBase):
     """Python file interface for BCachefs files"""
+
     def __init__(self, name, extents, file, inode, size):
         self.name = file
         self._extents = extents
@@ -188,22 +191,24 @@ class Bcachefs:
     ...         bytes = f.read()
 
     """
-    def __init__(self, path: str, mode: str = 'r'):
-        assert mode == 'r', 'Only reading is supported'
+
+    def __init__(self, path: str, mode: str = "r"):
+        assert mode == "r", "Only reading is supported"
 
         self._path = path
         self._filesystem = None
         self._size = 0
         self._file: [io.RawIOBase] = None
         self._closed = True
-        self._pwd = '/'             # Used in Cursor
+        self._pwd = "/"  # Used in Cursor
         self._dirent = ROOT_DIRENT  # Used in Cursor
         self._extents_map = {}
         self._inodes_ls = {ROOT_DIRENT.inode: []}
         self._inodes_tree = {}
+        self._inode_map = {}
         self._open()
 
-    def open(self, name: [str, int], mode: str = 'rb', encoding: str = 'utf-8'):
+    def open(self, name: [str, int], mode: str = "rb", encoding: str = "utf-8"):
         """Open a file inside the image for reading
 
         Parameters
@@ -224,13 +229,13 @@ class Bcachefs:
         extents = self._extents_map.get(inode)
 
         if extents is None:
-            raise FileNotFoundError(f'{name} was not found')
+            raise FileNotFoundError(f"{name} was not found")
 
         file_size = self._inode_map[inode]
 
-        base =_BCacheFSFileBinary(name, extents, self._file, inode, file_size)
+        base = _BCacheFSFileBinary(name, extents, self._file, inode, file_size)
 
-        if 'b' in mode:
+        if "b" in mode:
             return base
 
         return io.TextIOWrapper(base, encoding)
@@ -269,9 +274,10 @@ class Bcachefs:
     def closed(self) -> bool:
         return self._closed
 
-    def cd(self, path: str = '/'):
-        cursor = Cursor(self.path, self._extents_map, self._inodes_ls,
-                        self._inodes_tree)
+    def cd(self, path: str = "/"):
+        cursor = Cursor(
+            self.path, self._extents_map, self._inodes_ls, self._inodes_tree
+        )
         return cursor.cd(path)
 
     def _open(self):
@@ -296,11 +302,10 @@ class Bcachefs:
         if not path:
             dirent = self._dirent
         else:
-            parts = [p for p in path.split('/') if p]
+            parts = [p for p in path.split("/") if p]
             dirent = self._dirent if not path.startswith("/") else ROOT_DIRENT
             while parts:
-                dirent = self._inodes_tree.get((dirent.inode, parts.pop(0)),
-                                               None)
+                dirent = self._inodes_tree.get((dirent.inode, parts.pop(0)), None)
                 if dirent is None:
                     break
         return dirent
@@ -348,14 +353,15 @@ class Bcachefs:
             self._extents_map.setdefault(extent.inode, [])
             self._extents_map[extent.inode].append(extent)
 
+        for inode in BcachefsIterInode(self._filesystem):
+            self._inode_map[inode.inode] = inode.size
+
         for parent_inode, ls in self._inodes_ls.items():
             self._inodes_ls[parent_inode] = self._unique_dirent_list(ls)
 
     def _walk(self, dirpath: str, dirent: DirEnt):
-        dirs = [ent for ent in self._inodes_ls[dirent.inode]
-                if ent.is_dir]
-        files = [ent for ent in self._inodes_ls[dirent.inode]
-                 if not ent.is_dir]
+        dirs = [ent for ent in self._inodes_ls[dirent.inode] if ent.is_dir]
+        files = [ent for ent in self._inodes_ls[dirent.inode] if not ent.is_dir]
         yield dirpath, dirs, files
         for d in dirs:
             for _ in self._walk(os.path.join(dirpath, d.name), d):
@@ -369,8 +375,13 @@ class Bcachefs:
 
 
 class Cursor(Bcachefs):
-    def __init__(self, path: [str, Bcachefs], extents_map: dict,
-                 inodes_ls: dict, inodes_tree: dict):
+    def __init__(
+        self,
+        path: [str, Bcachefs],
+        extents_map: dict,
+        inodes_ls: dict,
+        inodes_tree: dict,
+    ):
         if isinstance(path, str):
             super(Cursor, self).__init__(path)
         else:
@@ -392,19 +403,19 @@ class Cursor(Bcachefs):
     def pwd(self):
         return self._pwd
 
-    def cd(self, path: str = '/'):
+    def cd(self, path: str = "/"):
         if not path:
-            path = '/'
+            path = "/"
             _path = path
         elif path.startswith(".."):
-            pwd = self._pwd.split('/')
-            path = path.split('/')
+            pwd = self._pwd.split("/")
+            path = path.split("/")
             while pwd and path and path[0] == "..":
                 pwd.pop()
                 path.pop(0)
-            pwd = '/'.join(pwd)
+            pwd = "/".join(pwd)
             if not pwd:
-                pwd = '/'
+                pwd = "/"
             path = os.path.join(pwd, *path)
             _path = path
         else:
