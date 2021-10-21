@@ -225,16 +225,6 @@ def test_cursor_walk(image):
         assert list(cursor.walk("subdir")) == list(fs.walk("/dir/subdir"))
 
 
-def count_size(fs, name):
-    with fs:
-
-        try:
-            with fs.open(name, 'rb') as f:
-                return len(f.read())
-        except FileNotFoundError:
-            return 0
-
-
 def test_namelist():
     image = filepath(MINI)
     assert os.path.exists(image)
@@ -249,6 +239,16 @@ def test_namelist():
             'n02445715/n02445715_16523.JPEG', 
             'n04584207/n04584207_7936.JPEG'
         ]
+
+
+def count_size(fs, name):
+    with fs:
+
+        try:
+            with fs.open(name, 'rb') as f:
+                return len(f.read())
+        except FileNotFoundError:
+            return 0
 
 
 @pytest.mark.parametrize("image", TEST_IMAGES)
