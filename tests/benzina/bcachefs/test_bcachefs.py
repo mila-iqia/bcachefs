@@ -4,18 +4,21 @@ import pytest
 
 import bcachefs.bcachefs as bchfs
 from bcachefs import Bcachefs
+from bcachefs.testing import filepath
 
-MINI = "testdata/mini_Bcachefs.img"
+MINI = "testdata/mini_bcachefs.img"
 
 TEST_IMAGES = [MINI]
 
 
 @pytest.mark.parametrize("image", TEST_IMAGES)
 def test___enter__(image):
+    image = filepath(image)
     assert os.path.exists(image)
+
     fs = Bcachefs(image)
-    assert fs.closed
-    assert fs.size == 0
+    assert not fs.closed
+    assert fs.size > 0
     with fs:
         assert not fs.closed
         assert fs.size > 0
@@ -31,7 +34,9 @@ def test___enter__(image):
 
 @pytest.mark.parametrize("image", TEST_IMAGES)
 def test___iter__(image):
+    image = filepath(image)
     assert os.path.exists(image)
+
     with Bcachefs(image) as fs:
         assert sorted([ent.name for ent in fs]) == [
             "dir",
@@ -54,7 +59,9 @@ def test___iter__(image):
 
 @pytest.mark.parametrize("image", TEST_IMAGES)
 def test_find_dirent(image):
+    image = filepath(image)
     assert os.path.exists(image)
+
     with Bcachefs(image) as fs:
         dirent = fs.find_dirent("/")
         assert dirent.parent_inode == 0
@@ -62,10 +69,12 @@ def test_find_dirent(image):
         assert dirent.type == bchfs.DIR_TYPE
         assert dirent.name == "/"
         assert dirent == bchfs.ROOT_DIRENT
+
         dir_dirent = fs.find_dirent("/dir")
         assert dir_dirent.parent_inode == bchfs.ROOT_DIRENT.inode
         assert dir_dirent.type == bchfs.DIR_TYPE
         assert dir_dirent.name == "dir"
+
         subdir_dirent = fs.find_dirent("/dir/subdir")
         assert subdir_dirent.parent_inode == dir_dirent.inode
         assert subdir_dirent.type == bchfs.DIR_TYPE
@@ -74,7 +83,9 @@ def test_find_dirent(image):
 
 @pytest.mark.parametrize("image", TEST_IMAGES)
 def test_ls(image):
+    image = filepath(image)
     assert os.path.exists(image)
+
     with Bcachefs(image) as fs:
         ls = [e.name for e in fs.ls()]
         ls.sort()
@@ -94,10 +105,12 @@ def test_ls(image):
         assert ls == ["n04467665_63788.JPEG"]
 
 
-def test_read_file():
-    assert os.path.exists(MINI)
+@pytest.mark.parametrize("image", TEST_IMAGES)
+def test_read_file(image):
+    image = filepath(image)
+    assert os.path.exists(image)
 
-    with Bcachefs(MINI) as fs:
+    with Bcachefs(image) as fs:
         inode = fs.find_dirent("file1").inode
         assert bytes(fs.read_file(inode)) == b"File content 1\n"
 
@@ -108,7 +121,9 @@ def test_read_file():
 
 @pytest.mark.parametrize("image", TEST_IMAGES)
 def test_file_size(image):
+    image = filepath(image)
     assert os.path.exists(image)
+
     with Bcachefs(image) as fs:
         inode = fs.find_dirent("file1").inode
 
@@ -127,7 +142,9 @@ def test_file_size(image):
 
 @pytest.mark.parametrize("image", TEST_IMAGES)
 def test_walk(image):
+    image = filepath(image)
     assert os.path.exists(image)
+
     with Bcachefs(image) as fs:
         subdir_walk = list(fs.walk("dir/subdir"))
         assert len(subdir_walk) == 1
@@ -148,7 +165,9 @@ def test_walk(image):
 
 @pytest.mark.parametrize("image", TEST_IMAGES)
 def test_cursor___iter__(image):
+    image = filepath(image)
     assert os.path.exists(image)
+
     with Bcachefs(image) as fs, Bcachefs(image).cd() as cursor:
         assert sorted([ent.name for ent in cursor]) == sorted([ent.name for ent in fs])
         cursor.cd("dir")
@@ -157,7 +176,9 @@ def test_cursor___iter__(image):
 
 @pytest.mark.parametrize("image", TEST_IMAGES)
 def test_cursor_cd(image):
+    image = filepath(image)
     assert os.path.exists(image)
+
     with Bcachefs(image).cd() as cursor:
         assert cursor.pwd == "/"
         cursor.cd("dir/subdir")
@@ -172,7 +193,9 @@ def test_cursor_cd(image):
 
 @pytest.mark.parametrize("image", TEST_IMAGES)
 def test_cursor_find_dirent(image):
+    image = filepath(image)
     assert os.path.exists(image)
+
     with Bcachefs(image) as fs, Bcachefs(image).cd() as cursor:
         cursor.cd("dir/subdir")
         assert cursor.find_dirent("file2") == fs.find_dirent("dir/subdir/file2")
@@ -180,7 +203,9 @@ def test_cursor_find_dirent(image):
 
 @pytest.mark.parametrize("image", TEST_IMAGES)
 def test_cursor_ls(image):
+    image = filepath(image)
     assert os.path.exists(image)
+
     with Bcachefs(image) as fs, Bcachefs(image).cd() as cursor:
         cursor.cd("dir/subdir")
         assert cursor.ls() == fs.ls("dir/subdir")
@@ -190,7 +215,9 @@ def test_cursor_ls(image):
 
 @pytest.mark.parametrize("image", TEST_IMAGES)
 def test_cursor_walk(image):
+    image = filepath(image)
     assert os.path.exists(image)
+
     with Bcachefs(image) as fs, Bcachefs(image).cd() as cursor:
         cursor.cd("dir")
         assert list(cursor.walk("subdir")) == list(fs.walk("/dir/subdir"))

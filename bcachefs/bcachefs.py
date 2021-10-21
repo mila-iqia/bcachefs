@@ -62,18 +62,22 @@ class _BCacheFSFileBinary(io.BufferedIOBase):
     def __init__(self, name, extents, file, inode, size):
         self.name = file
         self._extents = extents
-        self._extend_pos = 0
+        print(self._extents)
+        # sort by offset so the extents are always in the right order
+        sorted(self._extents, key=lambda extent: extent.offset)
+        self._extent_pos = 0
         self._file = file
         self._buffer = bytearray(8 * 512)
-        self._partial = False
+        self._view = None
         self._inode = inode
         self._pos = 0
         self._size = size
+        self._extent_read = 0
 
     def reset(self):
         # that could be seek start of file
         self._partial = False
-        self._extend_pos = 0
+        self._extent_pos = 0
 
     def __enter__(self):
         return self
@@ -83,7 +87,7 @@ class _BCacheFSFileBinary(io.BufferedIOBase):
 
     @property
     def closed(self) -> bool:
-        return len(self._extents) == self._extend_pos and not self._partial
+        return len(self._extents) == self._extent_pos and not self._partial
 
     def fileno(self) -> int:
         return self._inode
@@ -91,8 +95,8 @@ class _BCacheFSFileBinary(io.BufferedIOBase):
     def read1(self, size: int) -> bytes:
         """Read at most size bytes with at most one call to the underlying stream"""
         buffer = bytearray(size)
-        size = readinto1(b)
-        return buffer[:size].data
+        size = self.readinto1(buffer)
+        return buffer[:size]
 
     def readall(self) -> bytes:
         """Most efficient way to read a file, single allocation"""
@@ -115,47 +119,45 @@ class _BCacheFSFileBinary(io.BufferedIOBase):
 
     def readinto1(self, b: memoryview) -> int:
         """Read at most one extend"""
-        # finish reading a block if b was < block size
-        # or we had inline data
-        if self._partial:
-            n = len(self._buffer)
-            b[0:n] = self._buffer
-            self._partial = False
-            self._pos += n
-            return n
 
-        if len(self._extents) >= self._extend_pos:
-            self.closed = self._closed()
+        # we ran out of extent, done
+        if self._extent_pos >= len(self._extents):
             return 0
 
-        extend = self._extents[self._extend_pos]
-        self._extend_pos += 1
+        # continue reading the current extent
+        extent = self._extents[self._extent_pos]
 
-        self._file.seek(extent.offset)
-        self._file.readinto(self._buffer)
+        self._file.seek(extent.offset + self._extent_read)
+        read = self._file.readinto(b)
 
-        n = len(b)
-        if n < len(self._buffer):
-            b[0:n] = self._buffer[:n]
-            self._buffer = self._buffer[n:]
-            self._partial = True
-            return n
+        self._extent_read += read
+        self._pos += read
 
-        n = len(self._buffer)
-        b[:n] = self._buffer
-        self._partial = False
-        self._pos += n
-        return n
+        # if we finished reading current extend go the the next one
+        if self._extent_read >= extent.size:
+            self._extent_pos += 1
+            self._extent_read = 0
+
+        # finished reading the file
+        if self._pos > self._size:
+            diff = self._pos - self._size
+
+            self._extent_pos += 1
+            self._extent_read = 0
+            return read - diff
+
+        return read
 
     def readinto(self, b: memoryview) -> int:
         return self.readinto1(b)
 
+    @property
     def isatty(self):
         return False
 
     @property
     def readable(self):
-        return not self.closed()
+        return not self.closed
 
     @property
     def seekable(self):
@@ -239,7 +241,6 @@ class Bcachefs:
             raise FileNotFoundError(f"{name} was not found")
 
         file_size = self._inode_map[inode]
-
         base = _BCacheFSFileBinary(name, extents, self._file, inode, file_size)
 
         if "b" in mode:
@@ -249,11 +250,9 @@ class Bcachefs:
 
     def namelist(self):
         """Returns a list of files contained by this archive
-
         Notes
         -----
         Added for parity with Zipfile interface
-
         """
         files = []
         for dirent in BcachefsIterDirEnt(self._filesystem):

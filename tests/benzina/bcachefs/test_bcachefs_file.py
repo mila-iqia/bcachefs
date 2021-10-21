@@ -1,30 +1,29 @@
 import os
+import io
+import math
 from hashlib import sha256
 
 import pytest
 
 import bcachefs.bcachefs as bchfs
 from bcachefs import Bcachefs
+from bcachefs.testing import filepath
 
 MINI = "testdata/mini_bcachefs.img"
 FILE = "n02033041/n02033041_3834.JPEG"
 
-this = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(this, "..", "..", ".."))
 
-
-def file(path):
-    return os.path.join(project_root, path)
-
-
-with open(file(os.path.join("testdata/mini_content", FILE)), 'rb') as original:
+with open(filepath(os.path.join("testdata/mini_content", FILE)), "rb") as original:
     sha = sha256()
-    sha.update(original.read())
+    original_data = original.read()
+    sha.update(original_data)
     original_hash = sha.digest()
 
 
 def test_file_properties():
-    with Bcachefs(file("testdata/mini_bcachefs.img")) as fs:
+    image = filepath(MINI)
+
+    with Bcachefs(image) as fs:
         with fs.open(FILE) as saved:
             assert saved.readable == True
             assert saved.isatty == False
@@ -34,49 +33,66 @@ def test_file_properties():
             assert saved.closed == False
 
             with pytest.raises(io.UnsupportedOperation):
-                saved.write(b'whatever')
+                saved.write(b"whatever")
 
             with pytest.raises(io.UnsupportedOperation):
                 saved.writelines([])
-            
+
             with pytest.raises(io.UnsupportedOperation):
                 saved.detach()
-            
+
 
 def test_file_readall():
-    assert os.path.exists(file("testdata/mini_bcachefs.img"))
+    image = filepath(MINI)
+    assert os.path.exists(image)
 
-    with Bcachefs(file("testdata/mini_bcachefs.img")) as fs:
+    with Bcachefs(image) as fs:
         with fs.open(FILE) as saved:
             sha = sha256()
-            sha.update(original.readall())
+            sha.update(saved.readall())
             bcachefs_hash = sha.digest()
 
     assert original_hash == bcachefs_hash
 
 
-def test_file_read1():
-    with Bcachefs(file("testdata/mini_bcachefs.img")) as fs:
+@pytest.mark.parametrize("size", [1, 2, 4, 8, 16, 32, 1024, 2048])
+def test_file_read1(size):
+    image = filepath(MINI)
+    assert os.path.exists(image)
+
+    all_data = []
+    with Bcachefs(image) as fs:
         with fs.open(FILE) as saved:
             sha = sha256()
 
-            while data := saved.read1(1):
+            k = 0
+            while data := saved.read1(size):
+                all_data.append(data)
+                k += 1
                 sha.update(data)
-            
+
             bcachefs_hash = sha.digest()
 
+    all_data = b"".join(all_data)
+
+    assert len(all_data) == len(original_data), "File size should match"
+    assert k == math.ceil(len(original_data) / size)
     assert original_hash == bcachefs_hash
 
 
-def test_file_readinto1():
-    with Bcachefs(file("testdata/mini_bcachefs.img")) as fs:
+@pytest.mark.parametrize("size", [1, 2, 4, 8, 16, 32, 1024, 2048])
+def test_file_readinto1(size):
+    image = filepath(MINI)
+    assert os.path.exists(image)
+
+    with Bcachefs(image) as fs:
         with fs.open(FILE) as saved:
             sha = sha256()
 
-            buffer = bytearray(2)
+            buffer = bytearray(size)
             while size := saved.readinto1(buffer):
                 sha.update(buffer[:size])
-            
+
             bcachefs_hash = sha.digest()
 
     assert original_hash == bcachefs_hash
