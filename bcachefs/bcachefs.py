@@ -12,6 +12,7 @@ from bcachefs.c_bcachefs import (
 )
 
 EXTENT_TYPE = 0
+INODE_TYPE = 1
 DIRENT_TYPE = 2
 
 DIR_TYPE = 4
@@ -23,6 +24,12 @@ class Extent:
     inode: int = 0
     file_offset: int = 0
     offset: int = 0
+    size: int = 0
+
+
+@dataclass
+class Inode:
+    inode: int = 0
     size: int = 0
 
 
@@ -449,6 +456,14 @@ class BcachefsIterExtent(BcachefsIter):
 
     def __next__(self):
         return Extent(*super(BcachefsIterExtent, self).__next__())
+
+
+class BcachefsIterInode(BcachefsIter):
+    def __init__(self, fs: _Bcachefs):
+        super(BcachefsIterInode, self).__init__(fs, INODE_TYPE)
+
+    def __next__(self):
+        return Inode(*super(BcachefsIterInode, self).__next__())
 
 
 class BcachefsIterDirEnt(BcachefsIter):
