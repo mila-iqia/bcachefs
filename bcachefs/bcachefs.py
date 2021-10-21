@@ -306,7 +306,7 @@ class Bcachefs:
         """
 
         directories = self._inodes_ls.get(ROOT_DIRENT.inode, [])
-        return self._namelist('', directories)
+        return self._namelist("", directories)
 
     def _namelist(self, path, directories):
         names = []
@@ -318,7 +318,7 @@ class Bcachefs:
 
             if dirent.is_file:
                 names.append(os.path.join(path, dirent.name))
-            
+
         return names
 
     def __enter__(self):
@@ -359,7 +359,7 @@ class Bcachefs:
 
     def close(self):
         if not self._closed:
-            # if the object was pickled we did not need the filesystem 
+            # if the object was pickled we did not need the filesystem
             # to be set
             if self._filesystem:
                 self._filesystem.close()
@@ -454,24 +454,24 @@ class Bcachefs:
             extents_map=self._extents_map,
             inode_ls=self._inodes_ls,
             inode_tree=self._inodes_tree,
-            inode_map=self._inode_map
+            inode_map=self._inode_map,
         )
-    
+
     def __setstate__(self, state):
-        self._path = state['path']
-        self._size = state['size']
-        self._closed = state['closed']
+        self._path = state["path"]
+        self._size = state["size"]
+        self._closed = state["closed"]
 
         if not self._closed:
-            self._file = open(self._path, 'rb')
-        
+            self._file = open(self._path, "rb")
+
         self._filesystem = None
-        self._pwd = state['pwd']
-        self._dirent = state['dirent']
-        self._extents_map = state['extents_map']
-        self._inodes_ls = state['inode_ls']
-        self._inodes_tree = state['inode_tree']
-        self._inode_map = state['inode_map']
+        self._pwd = state["pwd"]
+        self._dirent = state["dirent"]
+        self._extents_map = state["extents_map"]
+        self._inodes_ls = state["inode_ls"]
+        self._inodes_tree = state["inode_tree"]
+        self._inode_map = state["inode_map"]
 
 
 class Cursor(Bcachefs):

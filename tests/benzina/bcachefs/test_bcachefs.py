@@ -240,21 +240,21 @@ def test_namelist():
             'n04584207/n04584207_7936.JPEG'
         ]
 
-
+ 
 def count_size(fs, name):
     with fs:
 
         try:
-            with fs.open(name, 'rb') as f:
-                return len(f.read())
+            with fs.open(name, 'rb') as f: 
+                return len(f.read()) 
         except FileNotFoundError:
             return 0
-
+ 
 
 @pytest.mark.parametrize("image", TEST_IMAGES)
-def test_multiprocess(image):
-
-    image = filepath(image)
+def test_multiprocess(image): 
+ 
+    image = filepath(image) 
     assert os.path.exists(image)
 
     with Bcachefs(image) as fs:
