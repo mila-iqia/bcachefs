@@ -1,10 +1,12 @@
 import os
 
 import pytest
+import multiprocessing as mp
 
 import bcachefs.bcachefs as bchfs
 from bcachefs import Bcachefs
 from bcachefs.testing import filepath
+
 
 MINI = "testdata/mini_bcachefs.img"
 
@@ -221,3 +223,44 @@ def test_cursor_walk(image):
     with Bcachefs(image) as fs, Bcachefs(image).cd() as cursor:
         cursor.cd("dir")
         assert list(cursor.walk("subdir")) == list(fs.walk("/dir/subdir"))
+
+
+def count_size(fs, name):
+    with fs:
+
+        try:
+            with fs.open(name, 'rb') as f:
+                return len(f.read())
+        except FileNotFoundError:
+            return 0
+
+
+def test_namelist():
+    image = filepath(MINI)
+    assert os.path.exists(image)
+
+    with Bcachefs(image) as fs:
+        assert fs.namelist() == [
+            'file1', 
+            'n09332890/n09332890_29876.JPEG', 
+            'dir/subdir/file2', 
+            'n04467665/n04467665_63788.JPEG', 
+            'n02033041/n02033041_3834.JPEG', 
+            'n02445715/n02445715_16523.JPEG', 
+            'n04584207/n04584207_7936.JPEG'
+        ]
+
+
+@pytest.mark.parametrize("image", TEST_IMAGES)
+def test_multiprocess(image):
+
+    image = filepath(image)
+    assert os.path.exists(image)
+
+    with Bcachefs(image) as fs:
+        files = fs.namelist()
+
+        with mp.Pool(4) as p:
+            sizes = p.starmap(count_size, [(fs, n) for n in files])
+
+    assert sum(sizes) > 1

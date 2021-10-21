@@ -51,6 +51,9 @@ class DirEnt:
     def __str__(self):
         return self.name
 
+    def __hash__(self):
+        return self.inode
+
 
 ROOT_DIRENT = DirEnt(0, 4096, DIR_TYPE, "/")
 LOSTFOUND_DIRENT = DirEnt(4096, 4097, DIR_TYPE, "lost+found")
@@ -301,10 +304,22 @@ class Bcachefs:
         -----
         Added for parity with Zipfile interface
         """
-        files = []
-        for dirent in BcachefsIterDirEnt(self._filesystem):
-            files.append(dirent)
-        return files
+
+        directories = self._inodes_ls.get(ROOT_DIRENT.inode, [])
+        return self._namelist('', directories)
+
+    def _namelist(self, path, directories):
+        names = []
+
+        for dirent in directories:
+            if dirent.is_dir:
+                children = self._inodes_ls.get(dirent.inode, [])
+                names.extend(self._namelist(os.path.join(path, dirent.name), children))
+
+            if dirent.is_file:
+                names.append(os.path.join(path, dirent.name))
+            
+        return names
 
     def __enter__(self):
         return self
@@ -344,8 +359,11 @@ class Bcachefs:
 
     def close(self):
         if not self._closed:
-            self._filesystem.close()
-            self._filesystem = None
+            # if the object was pickled we did not need the filesystem 
+            # to be set
+            if self._filesystem:
+                self._filesystem.close()
+                self._filesystem = None
             self._size = 0
             self._file.close()
             self._file = None
@@ -425,6 +443,35 @@ class Bcachefs:
         # It's possible to have multiple inodes for a single file and this
         # implemetation assumes that the last inode should be the correct one.
         return list({ent.name: ent for ent in dirent_ls}.values())
+
+    def __getstate__(self):
+        return dict(
+            path=self._path,
+            size=self._size,
+            closed=self._closed,
+            pwd=self._pwd,
+            dirent=self._dirent,
+            extents_map=self._extents_map,
+            inode_ls=self._inodes_ls,
+            inode_tree=self._inodes_tree,
+            inode_map=self._inode_map
+        )
+    
+    def __setstate__(self, state):
+        self._path = state['path']
+        self._size = state['size']
+        self._closed = state['closed']
+
+        if not self._closed:
+            self._file = open(self._path, 'rb')
+        
+        self._filesystem = None
+        self._pwd = state['pwd']
+        self._dirent = state['dirent']
+        self._extents_map = state['extents_map']
+        self._inodes_ls = state['inode_ls']
+        self._inodes_tree = state['inode_tree']
+        self._inode_map = state['inode_map']
 
 
 class Cursor(Bcachefs):
