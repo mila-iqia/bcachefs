@@ -61,18 +61,22 @@ class _BCacheFSFileBinary(io.BufferedIOBase):
 
     def __init__(self, name, extents, file, inode, size):
         self.name = file
-        self._extents = extents
-        print(self._extents)
-        # sort by offset so the extents are always in the right order
-        sorted(self._extents, key=lambda extent: extent.offset)
-        self._extent_pos = 0
-        self._file = file
-        self._buffer = bytearray(8 * 512)
-        self._view = None
         self._inode = inode
-        self._pos = 0
         self._size = size
-        self._extent_read = 0
+
+        # underlying bcachefs archive
+        # DO NOT close this!!
+        self._file = file
+
+        # sort by offset so the extents are always in the right order
+        sorted(extents, key=lambda extent: extent.offset)
+        self._extents = extents
+
+        self._extent_pos = 0  # current extent being read
+        self._extent_read = (
+            0  # offset pointing to the unread part of the current extend
+        )
+        self._pos = 0  # absolute position inside the file
 
     def reset(self):
         # that could be seek start of file
@@ -94,24 +98,20 @@ class _BCacheFSFileBinary(io.BufferedIOBase):
         You can reuse the same file multiple time by calling `reset`
 
         """
-        return self._extent_pos >= len(self._extents) and not self._view
+        return self._extent_pos >= len(self._extents)
 
     def fileno(self) -> int:
         """returns the inode of the file inside bcachefs"""
         return self._inode
 
     def read(self, n=-1) -> bytes:
+        """Read at most n bytes"""
         if n == -1:
             return self.readall()
 
         buffer = bytearray(n)
         view = memoryview(buffer)
-        size = self.readinto1(buffer)
-
-        while size < n and not self.closed:
-            size += self.readinto1(view[size:])
-
-        return buffer
+        return self.readinto(view)
 
     def read1(self, size: int) -> bytes:
         """Read at most size bytes with at most one call to the underlying stream"""
@@ -177,7 +177,14 @@ class _BCacheFSFileBinary(io.BufferedIOBase):
         return read
 
     def readinto(self, b: memoryview) -> int:
-        return self.readinto1(b)
+        """Read until the buffer is filled"""
+        n = len(b)
+        size = self.readinto1(b)
+
+        while size < n and not self.closed:
+            size += self.readinto1(b[size:])
+
+        return b
 
     @property
     def isatty(self):
@@ -189,7 +196,7 @@ class _BCacheFSFileBinary(io.BufferedIOBase):
 
     @property
     def seekable(self):
-        return False
+        return True
 
     def seek(self, offset, whence=io.SEEK_SET):
         if whence == io.SEEK_END:

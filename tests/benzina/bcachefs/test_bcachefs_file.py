@@ -27,7 +27,7 @@ def test_file_properties():
         with fs.open(FILE) as saved:
             assert saved.readable == True
             assert saved.isatty == False
-            assert saved.seekable == False
+            assert saved.seekable == True
             assert saved.writable == False
             assert saved.fileno() == fs.find_dirent(FILE).inode
             assert saved.closed == False
