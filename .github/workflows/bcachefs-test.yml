@@ -29,8 +29,8 @@ jobs:
 
       - name: Tests
         run: | 
-          COVERAGE_FILE=.coverage_py.xml coverage run --parallel-mode -m pytest tests/
-          gcovr -r . -x -o .coverage_c.xml
+          COVERAGE_FILE=.coverage.py coverage run --parallel-mode -m pytest tests/
+          gcovr -r . -x -o .coverage.c
           coverage combine
           coverage report -m
           coverage xml
