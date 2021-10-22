@@ -38,4 +38,4 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v2
         with:
-          files: .coverage_c.xml, coverage.xml
+          files: .coverage_c.xml,coverage.xml
