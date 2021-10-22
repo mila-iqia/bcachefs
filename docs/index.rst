@@ -1,7 +1,7 @@
-BCachefs
+Bcachefs
 ========
 
-BCachefs leverage the bcachefs_ filesystem technology to create readonly
+Bcachefs leverage the bcachefs_ filesystem technology to create readonly
 dataset image optimized for reading.
 
 .. _bcachefs: https://bcachefs.org/
@@ -9,7 +9,7 @@ dataset image optimized for reading.
 Features
 ~~~~~~~~
 
-* Parallel Filesystem friendly (Lustre BeeGFS)
+* Parallel Filesystem friendly (Lustre, BeeGFS)
 * Multiprocessing friendly
 * up to 2x faster than HDF5
 
