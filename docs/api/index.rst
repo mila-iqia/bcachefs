@@ -1,5 +1,5 @@
 Bcachefs
 ========
 
-.. automodule:: bcachefs
+.. automodule:: bcachefs.bcachefs
    :members:
