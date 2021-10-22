@@ -4,6 +4,8 @@ BCachefs
 BCachefs leverage the bcachefs_ filesystem technology to create readonly
 dataset image optimized for reading.
 
+.. _bcachefs: https://bcachefs.org/
+
 Features:
 
 * Parallel Filesystem friendly (Lustre BeeGFS)
@@ -24,8 +26,5 @@ In progress:
 
 
 .. toctree::
-
-   capi/index
+   
    api/index
-
-.. _bcachefs: https://bcachefs.org/

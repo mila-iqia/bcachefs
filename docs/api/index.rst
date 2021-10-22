@@ -1,5 +1,7 @@
-Bcachefs
-========
+API
+===
 
-.. automodule:: bcachefs.bcachefs
-   :members:
+.. toctree::
+
+   python
+   c
