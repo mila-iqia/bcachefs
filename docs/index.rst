@@ -21,6 +21,9 @@ Planned
 * Compression
 
 
+Documentation
+~~~~~~~~~~~~~
+
 .. toctree::
 
    getting_started/index
