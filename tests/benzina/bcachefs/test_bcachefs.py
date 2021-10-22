@@ -242,6 +242,9 @@ def test_namelist():
 
  
 def count_size(fs, name):
+    import coverage
+    coverage.process_startup()
+
     with fs:
 
         try:
