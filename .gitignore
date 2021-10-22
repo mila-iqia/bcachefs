@@ -119,7 +119,7 @@ pip-delete-this-directory.txt
 htmlcov/
 .tox/
 .nox/
-.coverage
+.coverage*
 .coverage.*
 .cache
 nosetests.xml
@@ -214,3 +214,4 @@ dmypy.json
 docs/Doxyfile
 docs/html/
 docs/latex/
+.vscode/

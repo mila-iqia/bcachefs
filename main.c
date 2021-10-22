@@ -4,10 +4,13 @@
 
 #include "bcachefs/bcachefs.h"
 
+#define MINI "testdata/mini_bcachefs.img"
+
+
 int main()
 {
-    BCacheFS bchfs = {0};
-    if (BCacheFS_open(&bchfs, "testdata/mini_bcachefs.img")) {}
+    Bcachefs bchfs = {0};
+    if (Bcachefs_open(&bchfs, MINI)) {}
     else
     {
         return 1;
@@ -33,69 +36,82 @@ int main()
     benz_print_hex(((const uint8_t*)&jset_magic) + 4, 4);
     printf("\n");
     printf("jset_magic:%llu\n", jset_magic);
+
+   
+    // Extent
+    // ----------------------------------------------------------------------------
+    {
+        Bcachefs_iterator bchfs_iter = {0};
+        Bcachefs_iter(&bchfs, &bchfs_iter, BTREE_ID_extents);
+        bch_val = Bcachefs_iter_next(&bchfs, &bchfs_iter);
+        bch_btree_ptr = NULL;
+        int i = 0;
+
+        while (bch_val)
+        {
+            if (bch_val == NULL)
+            {         
+                continue;
+            }
+
+            Bcachefs_extent extent = Bcachefs_iter_make_extent(&bchfs, &bchfs_iter);
+            printf("extent %3d: i:%llu fo:%10llu, o:%10llu, s:%10llu\n", 
+                i,
+                extent.inode, 
+                extent.file_offset, 
+                extent.offset, 
+                extent.size);
+
+            bch_val = Bcachefs_iter_next(&bchfs, &bchfs_iter);
+            i += 1;
+        }
+        Bcachefs_iter_fini(&bchfs, &bchfs_iter);
+    }
+
+    // Inode
+    // -----------------------------------------------------------------------------
+    {
+        Bcachefs_iterator bchfs_iter = {0};
+        Bcachefs_iter(&bchfs, &bchfs_iter, BTREE_ID_inodes);
+        bch_val = Bcachefs_iter_next(&bchfs, &bchfs_iter);
+        int i = 0;
+        while (bch_val)
+        {
+            Bcachefs_inode inode = Bcachefs_iter_make_inode(&bchfs, &bchfs_iter);
+            printf("inode %3d: i:%lu, s:%lu\n", i, inode.inode, inode.size);
+
+            i += 1;
+            bch_val = Bcachefs_iter_next(&bchfs, &bchfs_iter);
+        }
+        Bcachefs_iter_fini(&bchfs, &bchfs_iter);
+    }
     
-    BCacheFS_iterator bchfs_iter = {0};
-    BCacheFS_iter(&bchfs, &bchfs_iter, BTREE_ID_extents);
-    bch_val = BCacheFS_iter_next(&bchfs, &bchfs_iter);
-    bch_btree_ptr = NULL;
-    for (; bch_val; bch_val = BCacheFS_iter_next(&bchfs, &bchfs_iter))
+    // Dirent
+    // -----------------------------------------------------------------------------
     {
-        const struct bkey *bkey = bchfs_iter.bkey;
-        printf("bkey: u:%u, f:%u, t:%u, s:%u, o:%llu\n", bkey->u64s, bkey->format, bkey->type, bkey->size, bkey->p.offset);
-        char fname[30] = {0};
-        sprintf(fname, "tmp/%llu.JPEG", bkey->p.inode);
-        FILE *fp = fopen(fname, "rb+");
-        if (fp == NULL)
+        Bcachefs_iterator bchfs_iter = {0};
+        Bcachefs_iter(&bchfs, &bchfs_iter, BTREE_ID_dirents);
+        bch_val = Bcachefs_iter_next(&bchfs, &bchfs_iter);
+        int i = 0;
+        while (bch_val)
         {
-            fp = fopen(fname, "wb+");
-        }
-        if (bch_val == NULL)
-        {
-            continue;
-        }
-        BCacheFS_extent extent = BCacheFS_iter_make_extent(&bchfs, &bchfs_iter);
-        printf("extent: i:%llu fo:%llu, o:%llu, s:%llu\n",
-               extent.inode, extent.file_offset, extent.offset, extent.size);
-        switch (bkey->type)
-        {
-        case KEY_TYPE_extent:
-            printf("extent: i:%llu fo:%llu, o:%llu, s:%llu\n",
-                   extent.inode, extent.file_offset, extent.offset, extent.size);
+            Bcachefs_dirent dirent = Bcachefs_iter_make_dirent(&bchfs, &bchfs_iter);
+            char fname[30] = {0};
+            memcpy(fname, dirent.name, dirent.name_len);
 
-            fseek(bchfs.fp, (long)extent.offset, SEEK_SET);
-            uint8_t *bytes = malloc(extent.size);
-            fread(bytes, extent.size, 1, bchfs.fp);
-            printf("file: n:%s, t:%ld\n", fname, ftell(fp));
-            fseek(fp, (long)extent.file_offset, SEEK_SET);
-            printf("file: n:%s, t:%ld\n", fname, ftell(fp));
-            fwrite(bytes, extent.size, 1, fp);
-            break;
-        case KEY_TYPE_inline_data:
-            printf("extent: i:%llu fo:%llu, o:%llu, s:%llu\n",
-                   extent.inode, extent.file_offset, extent.offset, extent.size);
-            printf("d:[%s]\n", (const void*)bch_val);
+            printf("dirent %3d: p:%10llu, i:%10llu, t:%10u, %s\n",
+                i,
+                dirent.parent_inode,
+                dirent.inode,
+                dirent.type,
+                fname);
 
-            printf("file: n:%s, t:%ld\n", fname, ftell(fp));
-            fseek(fp, (long)extent.file_offset, SEEK_SET);
-            printf("file: n:%s, t:%ld\n", fname, ftell(fp));
-            fwrite(bch_val, extent.size, 1, fp);
-            break;
+            bch_val = Bcachefs_iter_next(&bchfs, &bchfs_iter);
+            i += 1;
         }
-        fclose(fp);
+        Bcachefs_iter_fini(&bchfs, &bchfs_iter);
     }
-    BCacheFS_iter_fini(&bchfs, &bchfs_iter);
-    BCacheFS_iter(&bchfs, &bchfs_iter, BTREE_ID_dirents);
-    bch_val = BCacheFS_iter_next(&bchfs, &bchfs_iter);
-    for (; bch_val; bch_val = BCacheFS_iter_next(&bchfs, &bchfs_iter))
-    {
-        BCacheFS_dirent dirent = BCacheFS_iter_make_dirent(&bchfs, &bchfs_iter);
-        printf("dirent: p:%llu, i:%llu, t:%u, %s\n",
-               dirent.parent_inode,
-               dirent.inode,
-               dirent.type,
-               dirent.name);
-    }
-    BCacheFS_iter_fini(&bchfs, &bchfs_iter);
-    BCacheFS_fini(&bchfs);
+
+    Bcachefs_fini(&bchfs);
     return 0;
 }
