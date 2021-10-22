@@ -19,12 +19,6 @@ In progress:
 
 
 .. toctree::
-   :caption: How to
 
-   howto/read
-   howto/write
-
-
-.. toctree::
-   
+   getting_started/index
    api/index
