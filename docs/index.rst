@@ -1,12 +1,19 @@
 BCachefs
 ========
 
-* Dataset Images
+BCachefs leverage the bcachefs_ filesystem technology to create readonly
+dataset image optimized for reading.
 
-Academic torrent Links ? 
-* ImageNet
-* Mnist
-* ...
+Features:
+
+* Parallel Filesystem friendly (Lustre BeeGFS)
+* Multiprocessing friendly
+* up to 2x faster than HDF5
+
+In progress:
+
+* Encryption
+* Compression
 
 
 .. toctree::
@@ -17,6 +24,8 @@ Academic torrent Links ?
 
 
 .. toctree::
-   :caption: C API
 
    capi/index
+   api/index
+
+.. _bcachefs: https://bcachefs.org/
