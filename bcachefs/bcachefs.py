@@ -170,6 +170,13 @@ class Bcachefs:
         for parent_inode, ls in self._inodes_ls.items():
             self._inodes_ls[parent_inode] = self._unique_dirent_list(ls)
 
+        for inode, extents in self._extents_map.items():
+            unique_extents = []
+            for ext in sorted(extents, key=lambda ext: ext.file_offset):
+                if ext not in unique_extents[-1:]:
+                    unique_extents.append(ext)
+            self._extents_map[inode] = unique_extents
+
     def _walk(self, dirpath: str, dirent: DirEnt):
         dirs = [ent for ent in self._inodes_ls[dirent.inode]
                 if ent.is_dir]
@@ -183,7 +190,7 @@ class Bcachefs:
     @staticmethod
     def _unique_dirent_list(dirent_ls):
         # It's possible to have multiple inodes for a single file and this
-        # implemetation assumes that the last inode should be the correct one.
+        # implementation assumes that the last inode should be the correct one.
         return list({ent.name: ent for ent in dirent_ls}.values())
 
 
