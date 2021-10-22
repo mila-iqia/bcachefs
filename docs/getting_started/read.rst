@@ -1,5 +1,5 @@
-Read
-~~~~
+Read images
+~~~~~~~~~~~
 
 .. code-block:: python
 

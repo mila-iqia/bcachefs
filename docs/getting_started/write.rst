@@ -1,5 +1,5 @@
-Write
-~~~~~
+Creating a new image
+~~~~~~~~~~~~~~~~~~~~
 
 Bcachefs focus exclusively on reading Bcachefs archive.
 The best way to create a new archive is to use the standard bcachefs tools.

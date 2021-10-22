@@ -6,13 +6,16 @@ dataset image optimized for reading.
 
 .. _bcachefs: https://bcachefs.org/
 
-Features:
+Features
+~~~~~~~~
 
 * Parallel Filesystem friendly (Lustre BeeGFS)
 * Multiprocessing friendly
 * up to 2x faster than HDF5
 
-In progress:
+
+Planned
+~~~~~~~
 
 * Encryption
 * Compression
