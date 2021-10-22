@@ -31,6 +31,9 @@ jobs:
         run: | 
           COVERAGE_FILE=.coverage_py.xml coverage run --parallel-mode -m pytest tests/
           gcovr -r . -x -o .coverage_c.xml
+          coverage combine
+          coverage report -m
+          coverage xml
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v2
