@@ -29,11 +29,13 @@ jobs:
 
       - name: Tests
         run: | 
-          COVERAGE_FILE=.coverage.py coverage run --parallel-mode -m pytest tests/
-          gcovr -r . -x -o .coverage.c
+          coverage run --parallel-mode -m pytest tests/
           coverage combine
           coverage report -m
           coverage xml
 
+          gcovr -r . -x -o .coverage_c.xml
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v2
+        files: .coverage_c.xml, .coverage
