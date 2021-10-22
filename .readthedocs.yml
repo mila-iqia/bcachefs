@@ -3,7 +3,7 @@ version: 2
 sphinx:
   configuration: docs/conf.py
 
-formats: all
+formats: []
 
 # Optionally set the version of Python and requirements required to build your docs
 python:
@@ -13,5 +13,3 @@ python:
     - requirements: requirements.txt
     - method: pip
       path: .
-      extra_requirements:
-        - all
