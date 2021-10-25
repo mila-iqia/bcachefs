@@ -21,7 +21,9 @@ MINI = "testdata/mini_bcachefs.img"
 FILE = "n02033041/n02033041_3834.JPEG"
 
 
-with open(filepath(os.path.join("testdata/mini_content", FILE)), "rb") as original:
+with open(
+    filepath(os.path.join("testdata/mini_content", FILE)), "rb"
+) as original:
     sha = sha256()
     original_data = original.read()
     sha.update(original_data)

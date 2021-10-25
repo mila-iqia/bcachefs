@@ -170,7 +170,9 @@ def test_cursor___iter__(image):
     image = filepath(image)
     assert os.path.exists(image)
     with Bcachefs(image) as fs, Bcachefs(image).cd() as cursor:
-        assert sorted([ent.name for ent in cursor]) == sorted([ent.name for ent in fs])
+        assert sorted([ent.name for ent in cursor]) == sorted(
+            [ent.name for ent in fs]
+        )
         cursor.cd("dir")
         assert sorted([ent.name for ent in cursor]) == ["file2", "subdir"]
 

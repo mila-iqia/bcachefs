@@ -311,7 +311,9 @@ class Bcachefs:
         for dirent in directories:
             if dirent.is_dir:
                 children = self._inodes_ls.get(dirent.inode, [])
-                names.extend(self._namelist(os.path.join(path, dirent.name), children))
+                names.extend(
+                    self._namelist(os.path.join(path, dirent.name), children)
+                )
 
             if dirent.is_file:
                 names.append(os.path.join(path, dirent.name))
@@ -374,7 +376,9 @@ class Bcachefs:
             parts = [p for p in path.split("/") if p]
             dirent = self._dirent if not path.startswith("/") else ROOT_DIRENT
             while parts:
-                dirent = self._inodes_tree.get((dirent.inode, parts.pop(0)), None)
+                dirent = self._inodes_tree.get(
+                    (dirent.inode, parts.pop(0)), None
+                )
                 if dirent is None:
                     break
         return dirent
