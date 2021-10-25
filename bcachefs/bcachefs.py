@@ -28,7 +28,7 @@ FILE_TYPE = 8
 
 @dataclass
 class Extent:
-    """Specify the location of a chunk of a file
+    """Specify the location of a chunk of a file inside the image
 
     Attributes
     ----------
@@ -51,7 +51,8 @@ class Extent:
     ...     # go at the begining of the chunk
     ...     image.seek(extent.offset)
     ...     # read the entire chunk
-            image.readinto(_bytes[extent.file_offset:extent.file_offset + extent.size])
+    ...     image.readinto(_bytes[extent.file_offset:extent.file_offset + extent.size])
+
     """
     inode: int = 0
     file_offset: int = 0
