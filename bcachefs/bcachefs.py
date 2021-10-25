@@ -6,8 +6,14 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from bcachefs.c_bcachefs import PyBcachefs as _Bcachefs, \
-    PyBcachefs_iterator as _Bcachefs_iterator
+try:
+    from bcachefs.c_bcachefs import PyBcachefs as _Bcachefs, \
+        PyBcachefs_iterator as _Bcachefs_iterator
+except ImportError as exception:
+    read_the_docs_build = os.environ.get('READTHEDOCS', None) == 'True'
+
+    if not read_the_docs_build:
+        raise exception
 
 EXTENT_TYPE = 0
 INODE_TYPE = 1
