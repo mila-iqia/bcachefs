@@ -15,6 +15,9 @@ except ImportError as exception:
     if not read_the_docs_build:
         raise exception
 
+    _Bcachefs = 0
+    _Bcachefs_iterator = 0
+
 EXTENT_TYPE = 0
 INODE_TYPE = 1
 DIRENT_TYPE = 2
