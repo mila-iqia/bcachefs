@@ -28,6 +28,31 @@ FILE_TYPE = 8
 
 @dataclass
 class Extent:
+    """Specify the location of a chunk of a file
+
+    Attributes
+    ----------
+    inode: int
+        inode of the file
+
+    file_offset: int
+        position of the file chunk
+
+    offset: int
+        position inside the image where the chunk starts
+
+    size: int
+        size of the chunk
+
+    Examples
+    --------
+
+    >>> with open('/my/archive') as image:
+    ...     # go at the begining of the chunk
+    ...     image.seek(extent.offset)
+    ...     # read the entire chunk
+            image.readinto(_bytes[extent.file_offset:extent.file_offset + extent.size])
+    """
     inode: int = 0
     file_offset: int = 0
     offset: int = 0
@@ -36,12 +61,40 @@ class Extent:
 
 @dataclass
 class Inode:
+    """Bcachefs Inode Attributes
+
+    Attributes
+    ----------
+    inode: int
+        inode the attributes belongs to
+
+    size: int
+        file size
+
+    """
     inode: int = 0
     size: int = 0
 
 
 @dataclass
 class DirEnt:
+    """Bcachefs directory entry
+
+    Attributes
+    ----------
+    parrent_inode: int
+        inode of the parent entry (directory)
+
+    inode: int
+        inode of the current entry
+
+    type: int
+        file (8) or directory (4)
+
+    name: str
+        name of current entry (file or directory)
+
+    """
     parent_inode: int = 0
     inode: int = 0
     type: int = 0
