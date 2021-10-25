@@ -61,6 +61,14 @@ LOSTFOUND_DIRENT = DirEnt(4096, 4097, DIR_TYPE, "lost+found")
 
 
 class Bcachefs:
+    """Opens a Bcachefs image for reading
+
+    Parameters
+    ----------
+    path: str
+        path to the image
+
+    """
     def __init__(self, path: str):
         self._path = path
         self._filesystem = None
