@@ -28,7 +28,7 @@ setup(
     name="bcachefs",
     version="0.1.7",
     author="Satya Ortiz-Gagné",
-    description='Fast Dataset Archive for HPC',
+    description='Fast Dataset Image for HPC',
     url="",
     packages=find_packages(),
     ext_modules=[bcachefs_module],
