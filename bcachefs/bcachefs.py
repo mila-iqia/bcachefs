@@ -312,7 +312,6 @@ class Bcachefs:
     Examples
     --------
     >>> with BCacheFS('/path/to/image', 'r') as image:
-
     ...     with image.open('file.bin', 'rb') as f:
     ...         bytes = f.read()
 
