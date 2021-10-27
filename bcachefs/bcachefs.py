@@ -21,7 +21,7 @@ DIR_TYPE = 4
 FILE_TYPE = 8
 
 
-@dataclass
+@dataclass(eq=True, frozen=True)
 class Extent:
     inode: int = 0
     file_offset: int = 0
@@ -29,11 +29,10 @@ class Extent:
     size: int = 0
 
 
-@dataclass
+@dataclass(eq=True, frozen=True)
 class Inode:
     inode: int = 0
     size: int = 0
-
 
 
 @dataclass(eq=True, frozen=True)
@@ -426,6 +425,9 @@ class Bcachefs:
         for inode in BcachefsIterInode(self._filesystem):
             self._inode_map[inode.inode] = inode.size
 
+        for inode, extents in self._extents_map.items():
+            self._extents_map[inode] = self._unique_extent_list(extents)
+
         for parent_inode, ls in self._inodes_ls.items():
             self._inodes_ls[parent_inode] = self._unique_dirent_list(ls)
 
@@ -437,9 +439,20 @@ class Bcachefs:
             yield from self._walk(os.path.join(dirpath, d.name), d)
 
     @staticmethod
+    def _unique_extent_list(inode_extents):
+        # It's possible to have multiple duplicated extents for a single inode
+        # and this implementation assumes that the last ones should be the
+        # correct ones.
+        unique_extent_list = []
+        for ent in sorted(inode_extents, key=lambda _: _.file_offset):
+            if ent not in unique_extent_list[-1:]:
+                unique_extent_list.append(ent)
+        return unique_extent_list
+
+    @staticmethod
     def _unique_dirent_list(dirent_ls):
         # It's possible to have multiple inodes for a single file and this
-        # implemetation assumes that the last inode should be the correct one.
+        # implementation assumes that the last inode should be the correct one.
         return list({ent.name: ent for ent in dirent_ls}.values())
 
     def __getstate__(self):
