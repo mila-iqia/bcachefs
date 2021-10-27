@@ -432,8 +432,7 @@ class Bcachefs:
         files = [ent for ent in self._inodes_ls[dirent.inode] if not ent.is_dir]
         yield dirpath, dirs, files
         for d in dirs:
-            for _ in self._walk(os.path.join(dirpath, d.name), d):
-                yield _
+            yield from self._walk(os.path.join(dirpath, d.name), d)
 
     @staticmethod
     def _unique_dirent_list(dirent_ls):
