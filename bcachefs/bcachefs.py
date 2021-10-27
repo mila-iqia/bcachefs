@@ -265,7 +265,6 @@ class Bcachefs:
         self._inodes_ls = {ROOT_DIRENT.inode: []}
         self._inodes_tree = {}
         self._inode_map = {}
-        self._open()
 
     def open(self, name: [str, int], mode: str = "rb", encoding: str = "utf-8"):
         """Open a file inside the image for reading
@@ -319,6 +318,7 @@ class Bcachefs:
         return names
 
     def __enter__(self):
+        self._open()
         return self
 
     def __exit__(self, _type, _value, _traceback):

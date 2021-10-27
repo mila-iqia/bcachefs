@@ -19,8 +19,8 @@ def test___enter__(image):
     assert os.path.exists(image)
 
     fs = Bcachefs(image)
-    assert not fs.closed
-    assert fs.size > 0
+    assert fs.closed
+    assert fs.size == 0
     with fs:
         assert not fs.closed
         assert fs.size > 0
