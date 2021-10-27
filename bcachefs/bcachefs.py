@@ -199,12 +199,6 @@ class _BcachefsFileBinary(io.BufferedIOBase):
         return True
 
     def seek(self, offset, whence=io.SEEK_SET):
-        raise io.UnsupportedOperation
-        return self._seek(offset, whence)
-
-    def _seek(self, offset, whence=io.SEEK_SET):
-        # this does not work with PIL ?
-        # PIL.UnidentifiedImageError: cannot identify image file
         if whence == io.SEEK_END:
             return self.seek(self._size + offset, io.SEEK_SET)
 
@@ -219,7 +213,7 @@ class _BcachefsFileBinary(io.BufferedIOBase):
                 s = extent.file_offset
                 e = s + extent.size
 
-                if s < offset < e:
+                if s <= offset < e:
                     self._extent_pos = i
                     self._extent_read = offset - s
                     self._pos = offset

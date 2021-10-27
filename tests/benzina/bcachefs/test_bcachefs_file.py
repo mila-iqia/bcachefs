@@ -15,7 +15,7 @@ def pil_loader(file_object):
     img = Image.open(file_object, 'r')
     img = img.convert('RGB')
     return img
- 
+
 
 MINI = "testdata/mini_bcachefs.img"
 FILE = "n02033041/n02033041_3834.JPEG"
@@ -113,8 +113,7 @@ def test_file_seek(offset):
 
     with Bcachefs(image) as fs:
         with fs.open(FILE) as saved:
-
-            saved._seek(offset)
+            saved.seek(offset)
             data = saved.read(offset)
             assert data == original_data[offset:offset * 2]
 
@@ -124,8 +123,12 @@ def test_read_image():
     image = filepath(MINI)
     assert os.path.exists(image)
 
+    def no_seek(*args):
+        raise io.UnsupportedOperation
+
     with Bcachefs(image) as fs:
         with fs.open(FILE) as image_file:
+            image_file.seek = no_seek
             image = pil_loader(image_file)
 
 
@@ -135,8 +138,4 @@ def test_read_image_with_seek():
 
     with Bcachefs(image) as fs:
         with fs.open(FILE) as image_file:
-            image_file.seek = image_file._seek
-
-            # fails when seek is enabled
-            with pytest.raises(UnidentifiedImageError):
-                image = pil_loader(image_file)
+            image = pil_loader(image_file)
