@@ -33,7 +33,8 @@ class Inode:
     size: int = 0
 
 
-@dataclass
+
+@dataclass(eq=True, frozen=True)
 class DirEnt:
     parent_inode: int = 0
     inode: int = 0
@@ -50,9 +51,6 @@ class DirEnt:
 
     def __str__(self):
         return self.name
-
-    def __hash__(self):
-        return self.inode
 
 
 ROOT_DIRENT = DirEnt(0, 4096, DIR_TYPE, "/")
@@ -110,26 +108,25 @@ class _BcachefsFileBinary(io.BufferedIOBase):
         if n == -1:
             return self.readall()
 
-        buffer = bytearray(n)
+        buffer = np.empty(n, dtype='<u1')
         view = memoryview(buffer)
-        return self.readinto(view)
+        size = self.readinto(view)
+        return bytes(buffer[:size])
 
     def read1(self, size: int) -> bytes:
         """Read at most size bytes with at most one call to the underlying stream"""
-        buffer = bytearray(size)
-        size = self.readinto1(buffer)
-        return buffer[:size]
+        buffer = np.empty(size, dtype='<u1')
+        view = memoryview(buffer)
+        size = self.readinto1(view)
+        return bytes(buffer[:size])
 
     def readall(self) -> bytes:
         """Most efficient way to read a file, single allocation"""
-        buffer = bytearray(self._size)
-        data = []
+        buffer = np.empty(self._size, dtype='<u1')
+        memory = memoryview(buffer)
 
         s = 0
         e = 0
-
-        memory = memoryview(buffer)
-
         for extent in self._extents:
             s = e
             e = s + extent.size
@@ -137,7 +134,7 @@ class _BcachefsFileBinary(io.BufferedIOBase):
             self._file.seek(extent.offset)
             self._file.readinto(memory[s:e])
 
-        return buffer
+        return bytes(buffer)
 
     def readinto1(self, b: memoryview) -> int:
         """Read at most one extend
@@ -185,7 +182,7 @@ class _BcachefsFileBinary(io.BufferedIOBase):
         while size < n and not self.closed:
             size += self.readinto1(b[size:])
 
-        return b
+        return size
 
     @property
     def isatty(self):
