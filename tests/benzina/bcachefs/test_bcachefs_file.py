@@ -4,7 +4,7 @@ import math
 from hashlib import sha256
 
 import pytest
-from PIL import Image, ImageFile
+from PIL import Image, ImageFile, UnidentifiedImageError
 
 import bcachefs.bcachefs as bchfs
 from bcachefs import Bcachefs
@@ -106,7 +106,6 @@ def test_file_readinto1(size):
     assert original_hash == bcachefs_hash
 
 
-@pytest.mark.skip(reason="does not work for PIL")
 @pytest.mark.parametrize("offset", [1, 2, 4, 8, 16, 32, 1024, 2048])
 def test_file_seek(offset):
     image = filepath(MINI)
@@ -115,15 +114,29 @@ def test_file_seek(offset):
     with Bcachefs(image) as fs:
         with fs.open(FILE) as saved:
 
-            saved.seek(offset)
-            data = saved.read(1)
-            assert data[0] == original_data[offset]
+            saved._seek(offset)
+            data = saved.read(offset)
+            assert data == original_data[offset:offset * 2]
 
 
 def test_read_image():
+    # no seek works with PIL
     image = filepath(MINI)
     assert os.path.exists(image)
 
     with Bcachefs(image) as fs:
         with fs.open(FILE) as image_file:
             image = pil_loader(image_file)
+
+
+def test_read_image_with_seek():
+    image = filepath(MINI)
+    assert os.path.exists(image)
+
+    with Bcachefs(image) as fs:
+        with fs.open(FILE) as image_file:
+            image_file.seek = image_file._seek
+
+            # fails when seek is enabled
+            with pytest.raises(UnidentifiedImageError):
+                image = pil_loader(image_file)

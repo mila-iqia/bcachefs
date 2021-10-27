@@ -4,6 +4,8 @@ import io
 import os
 from dataclasses import dataclass
 
+from PIL.Image import WEB
+
 import numpy as np
 
 from bcachefs.c_bcachefs import (
@@ -70,7 +72,7 @@ class _BcachefsFileBinary(io.BufferedIOBase):
         self._file = file
 
         # sort by offset so the extents are always in the right order
-        sorted(extents, key=lambda extent: extent.offset)
+        sorted(extents, key=lambda extent: extent.file_offset)
         self._extents = extents
 
         self._extent_pos = 0  # current extent being read
@@ -81,6 +83,8 @@ class _BcachefsFileBinary(io.BufferedIOBase):
 
     def reset(self):
         self._extent_pos = 0
+        self._extend_read = 0
+        self._pos = 0
 
     def __enter__(self):
         return self
@@ -125,10 +129,8 @@ class _BcachefsFileBinary(io.BufferedIOBase):
         buffer = np.empty(self._size, dtype='<u1')
         memory = memoryview(buffer)
 
-        s = 0
-        e = 0
         for extent in self._extents:
-            s = e
+            s = extent.file_offset
             e = s + extent.size
 
             self._file.seek(extent.offset)
@@ -198,9 +200,11 @@ class _BcachefsFileBinary(io.BufferedIOBase):
 
     def seek(self, offset, whence=io.SEEK_SET):
         raise io.UnsupportedOperation
-        
+        return self._seek(offset, whence)
+
+    def _seek(self, offset, whence=io.SEEK_SET):
         # this does not work with PIL ?
-        print(offset, whence)
+        # PIL.UnidentifiedImageError: cannot identify image file
         if whence == io.SEEK_END:
             return self.seek(self._size + offset, io.SEEK_SET)
 
@@ -209,10 +213,10 @@ class _BcachefsFileBinary(io.BufferedIOBase):
 
         if whence == io.SEEK_SET:
             self.reset()
-            
+
             e = 0
             for i, extent in enumerate(self._extents):
-                s = e
+                s = extent.file_offset
                 e = s + extent.size
 
                 if s < offset < e:
