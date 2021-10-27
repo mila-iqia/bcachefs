@@ -4,10 +4,14 @@ import io
 import os
 from dataclasses import dataclass
 
+from PIL.Image import WEB
+
 import numpy as np
 
-from bcachefs.c_bcachefs import PyBcachefs as _Bcachefs, \
-    PyBcachefs_iterator as _Bcachefs_iterator
+from bcachefs.c_bcachefs import (
+    PyBcachefs as _Bcachefs,
+    PyBcachefs_iterator as _Bcachefs_iterator,
+)
 
 EXTENT_TYPE = 0
 INODE_TYPE = 1
@@ -46,27 +50,276 @@ class DirEnt:
     def is_file(self):
         return self.type == FILE_TYPE
 
+    def __str__(self):
+        return self.name
 
-ROOT_DIRENT = DirEnt(0, 4096, DIR_TYPE, '/')
+
+ROOT_DIRENT = DirEnt(0, 4096, DIR_TYPE, "/")
 LOSTFOUND_DIRENT = DirEnt(4096, 4097, DIR_TYPE, "lost+found")
 
 
+class _BcachefsFileBinary(io.BufferedIOBase):
+    """Python file interface for Bcachefs files"""
+
+    def __init__(self, name, extents, file, inode, size):
+        self.name = file
+        self._inode = inode
+        self._size = size
+
+        # underlying bcachefs archive
+        # DO NOT close this!!
+        self._file = file
+
+        # sort by offset so the extents are always in the right order
+        sorted(extents, key=lambda extent: extent.file_offset)
+        self._extents = extents
+
+        self._extent_pos = 0  # current extent being read
+        self._extent_read = (
+            0  # offset pointing to the unread part of the current extend
+        )
+        self._pos = 0  # absolute position inside the file
+
+    def reset(self):
+        self._extent_pos = 0
+        self._extend_read = 0
+        self._pos = 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        pass
+
+    @property
+    def closed(self) -> bool:
+        """return true if we finished reading the current file
+
+        Notes
+        -----
+        You can reuse the same file multiple time by calling `reset`
+
+        """
+        return self._extent_pos >= len(self._extents)
+
+    def fileno(self) -> int:
+        """returns the inode of the file inside bcachefs"""
+        return self._inode
+
+    def read(self, n=-1) -> bytes:
+        """Read at most n bytes"""
+        if n == -1:
+            return self.readall()
+
+        buffer = np.empty(n, dtype='<u1')
+        view = memoryview(buffer)
+        size = self.readinto(view)
+        return bytes(buffer[:size])
+
+    def read1(self, size: int) -> bytes:
+        """Read at most size bytes with at most one call to the underlying stream"""
+        buffer = np.empty(size, dtype='<u1')
+        view = memoryview(buffer)
+        size = self.readinto1(view)
+        return bytes(buffer[:size])
+
+    def readall(self) -> bytes:
+        """Most efficient way to read a file, single allocation"""
+        buffer = np.empty(self._size, dtype='<u1')
+        memory = memoryview(buffer)
+
+        for extent in self._extents:
+            s = extent.file_offset
+            e = s + extent.size
+
+            self._file.seek(extent.offset)
+            self._file.readinto(memory[s:e])
+
+        return bytes(buffer)
+
+    def readinto1(self, b: memoryview) -> int:
+        """Read at most one extend
+
+        Notes
+        -----
+        The size of the buffer is not checked against the extent size,
+        this means we could possibly read beyond the extent but the size returned
+        will be inside the bounds.
+        """
+
+        # we ran out of extent, done
+        if self._extent_pos >= len(self._extents):
+            return 0
+
+        # continue reading the current extent
+        extent = self._extents[self._extent_pos]
+
+        self._file.seek(extent.offset + self._extent_read)
+        read = self._file.readinto(b)
+
+        self._extent_read += read
+        self._pos += read
+
+        # if we finished reading current extend go the the next one
+        if self._extent_read >= extent.size:
+            self._extent_pos += 1
+            self._extent_read = 0
+
+        # finished reading the file
+        if self._pos > self._size:
+            diff = self._pos - self._size
+
+            self._extent_pos += 1
+            self._extent_read = 0
+            return read - diff
+
+        return read
+
+    def readinto(self, b: memoryview) -> int:
+        """Read until the buffer is full"""
+        n = len(b)
+        size = self.readinto1(b)
+
+        while size < n and not self.closed:
+            size += self.readinto1(b[size:])
+
+        return size
+
+    @property
+    def isatty(self):
+        return False
+
+    @property
+    def readable(self):
+        return not self.closed
+
+    @property
+    def seekable(self):
+        return True
+
+    def seek(self, offset, whence=io.SEEK_SET):
+        if whence == io.SEEK_END:
+            return self.seek(self._size + offset, io.SEEK_SET)
+
+        if whence == io.SEEK_CUR:
+            return self.seek(self._pos + offset, io.SEEK_SET)
+
+        if whence == io.SEEK_SET:
+            self.reset()
+
+            e = 0
+            for i, extent in enumerate(self._extents):
+                s = extent.file_offset
+                e = s + extent.size
+
+                if s <= offset < e:
+                    self._extent_pos = i
+                    self._extent_read = offset - s
+                    self._pos = offset
+                    break
+
+            return offset
+
+    def tell(self):
+        return self._pos
+
+    def detach(self):
+        raise io.UnsupportedOperation
+
+    @property
+    def writable(self):
+        return False
+
+    def writelines(self, lines):
+        raise io.UnsupportedOperation
+
+    def write(self, b):
+        raise io.UnsupportedOperation
+
+    def flush(self):
+        pass
+
+
 class Bcachefs:
-    def __init__(self, path: str):
+    """Open a BCacheFS image for reading
+
+    Examples
+    --------
+    >>> with BCacheFS('/path/to/image', 'r') as image:
+
+    ...     with image.open('file.bin', 'rb') as f:
+    ...         bytes = f.read()
+
+    """
+
+    def __init__(self, path: str, mode: str = "rb"):
+        assert mode in ("r", "rb"), "Only reading is supported"
+
         self._path = path
         self._filesystem = None
         self._size = 0
         self._file: [io.RawIOBase] = None
         self._closed = True
-        self._pwd = '/'             # Used in Cursor
+        self._pwd = "/"  # Used in Cursor
         self._dirent = ROOT_DIRENT  # Used in Cursor
         self._extents_map = {}
         self._inodes_ls = {ROOT_DIRENT.inode: []}
         self._inodes_tree = {}
         self._inode_map = {}
 
+    def open(self, name: [str, int], mode: str = "rb", encoding: str = "utf-8"):
+        """Open a file inside the image for reading
+
+        Parameters
+        ----------
+        name: str, int
+            Path to a file or inode integer
+
+        mode: str
+            reading mode rb (bytes)
+
+        encoding: str
+            string encoding to use, defaults to utf-8
+        """
+        inode = name
+        if isinstance(name, str):
+            inode = self.find_dirent(name).inode
+
+        extents = self._extents_map.get(inode)
+
+        if extents is None:
+            raise FileNotFoundError(f"{name} was not found")
+
+        file_size = self._inode_map[inode]
+        base = _BcachefsFileBinary(name, extents, self._file, inode, file_size)
+        return base
+
+    def namelist(self):
+        """Returns a list of files contained by this archive
+
+        Notes
+        -----
+        Added for parity with Zipfile interface
+        """
+
+        directories = self._inodes_ls.get(ROOT_DIRENT.inode, [])
+        return self._namelist("", directories)
+
+    def _namelist(self, path, directories):
+        names = []
+
+        for dirent in directories:
+            if dirent.is_dir:
+                children = self._inodes_ls.get(dirent.inode, [])
+                names.extend(self._namelist(os.path.join(path, dirent.name), children))
+
+            if dirent.is_file:
+                names.append(os.path.join(path, dirent.name))
+
+        return names
+
     def __enter__(self):
-        self.open()
+        self._open()
         return self
 
     def __exit__(self, _type, _value, _traceback):
@@ -87,12 +340,13 @@ class Bcachefs:
     def closed(self) -> bool:
         return self._closed
 
-    def cd(self, path: str = '/'):
-        cursor = Cursor(self.path, self._extents_map, self._inodes_ls,
-                        self._inodes_tree)
+    def cd(self, path: str = "/"):
+        cursor = Cursor(
+            self.path, self._extents_map, self._inodes_ls, self._inodes_tree
+        )
         return cursor.cd(path)
 
-    def open(self):
+    def _open(self):
         if self._closed:
             self._filesystem = _Bcachefs()
             self._filesystem.open(self._path)
@@ -103,8 +357,11 @@ class Bcachefs:
 
     def close(self):
         if not self._closed:
-            self._filesystem.close()
-            self._filesystem = None
+            # if the object was pickled we did not need the filesystem
+            # to be set
+            if self._filesystem:
+                self._filesystem.close()
+                self._filesystem = None
             self._size = 0
             self._file.close()
             self._file = None
@@ -114,16 +371,16 @@ class Bcachefs:
         if not path:
             dirent = self._dirent
         else:
-            parts = [p for p in path.split('/') if p]
+            parts = [p for p in path.split("/") if p]
             dirent = self._dirent if not path.startswith("/") else ROOT_DIRENT
             while parts:
-                dirent = self._inodes_tree.get((dirent.inode, parts.pop(0)),
-                                               None)
+                dirent = self._inodes_tree.get((dirent.inode, parts.pop(0)), None)
                 if dirent is None:
                     break
         return dirent
 
     def ls(self, path: [str, DirEnt] = None):
+        """Show the files inside a given directory"""
         if isinstance(path, DirEnt):
             parent = path
         elif not path:
@@ -136,18 +393,8 @@ class Bcachefs:
             return [parent]
 
     def read_file(self, inode: [str, int]) -> memoryview:
-        if isinstance(inode, str):
-            inode = self.find_dirent(inode).inode
-        extents = self._extents_map[inode]
-        file_size = self._inode_map[inode]
-
-        _bytes = np.empty(file_size, dtype="<u1")
-
-        for extent in extents:
-            self._file.seek(extent.offset)
-            self._file.readinto(_bytes[extent.file_offset:
-                                       extent.file_offset+extent.size])
-        return _bytes.data
+        with self.open(inode) as f:
+            return f.readall()
 
     def walk(self, top: str = None):
         if not top:
@@ -185,14 +432,11 @@ class Bcachefs:
             self._inodes_ls[parent_inode] = self._unique_dirent_list(ls)
 
     def _walk(self, dirpath: str, dirent: DirEnt):
-        dirs = [ent for ent in self._inodes_ls[dirent.inode]
-                if ent.is_dir]
-        files = [ent for ent in self._inodes_ls[dirent.inode]
-                 if not ent.is_dir]
+        dirs = [ent for ent in self._inodes_ls[dirent.inode] if ent.is_dir]
+        files = [ent for ent in self._inodes_ls[dirent.inode] if not ent.is_dir]
         yield dirpath, dirs, files
         for d in dirs:
-            for _ in self._walk(os.path.join(dirpath, d.name), d):
-                yield _
+            yield from self._walk(os.path.join(dirpath, d.name), d)
 
     @staticmethod
     def _unique_extent_list(inode_extents):
@@ -211,10 +455,44 @@ class Bcachefs:
         # implementation assumes that the last inode should be the correct one.
         return list({ent.name: ent for ent in dirent_ls}.values())
 
+    def __getstate__(self):
+        return dict(
+            path=self._path,
+            size=self._size,
+            closed=self._closed,
+            pwd=self._pwd,
+            dirent=self._dirent,
+            extents_map=self._extents_map,
+            inode_ls=self._inodes_ls,
+            inode_tree=self._inodes_tree,
+            inode_map=self._inode_map,
+        )
+
+    def __setstate__(self, state):
+        self._path = state["path"]
+        self._size = state["size"]
+        self._closed = state["closed"]
+
+        if not self._closed:
+            self._file = open(self._path, "rb")
+
+        self._filesystem = None
+        self._pwd = state["pwd"]
+        self._dirent = state["dirent"]
+        self._extents_map = state["extents_map"]
+        self._inodes_ls = state["inode_ls"]
+        self._inodes_tree = state["inode_tree"]
+        self._inode_map = state["inode_map"]
+
 
 class Cursor(Bcachefs):
-    def __init__(self, path: [str, Bcachefs], extents_map: dict,
-                 inodes_ls: dict, inodes_tree: dict):
+    def __init__(
+        self,
+        path: [str, Bcachefs],
+        extents_map: dict,
+        inodes_ls: dict,
+        inodes_tree: dict,
+    ):
         if isinstance(path, str):
             super(Cursor, self).__init__(path)
         else:
@@ -236,19 +514,19 @@ class Cursor(Bcachefs):
     def pwd(self):
         return self._pwd
 
-    def cd(self, path: str = '/'):
+    def cd(self, path: str = "/"):
         if not path:
-            path = '/'
+            path = "/"
             _path = path
         elif path.startswith(".."):
-            pwd = self._pwd.split('/')
-            path = path.split('/')
+            pwd = self._pwd.split("/")
+            path = path.split("/")
             while pwd and path and path[0] == "..":
                 pwd.pop()
                 path.pop(0)
-            pwd = '/'.join(pwd)
+            pwd = "/".join(pwd)
             if not pwd:
-                pwd = '/'
+                pwd = "/"
             path = os.path.join(pwd, *path)
             _path = path
         else:
