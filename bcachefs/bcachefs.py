@@ -16,7 +16,7 @@ DIR_TYPE = 4
 FILE_TYPE = 8
 
 
-@dataclass
+@dataclass(eq=True, frozen=True)
 class Extent:
     inode: int = 0
     file_offset: int = 0
@@ -24,7 +24,7 @@ class Extent:
     size: int = 0
 
 
-@dataclass
+@dataclass(eq=True, frozen=True)
 class DirEnt:
     parent_inode: int = 0
     inode: int = 0
@@ -167,15 +167,11 @@ class Bcachefs:
             self._extents_map.setdefault(extent.inode, [])
             self._extents_map[extent.inode].append(extent)
 
+        for inode, extents in self._extents_map.items():
+            self._extents_map[inode] = self._unique_extent_list(extents)
+
         for parent_inode, ls in self._inodes_ls.items():
             self._inodes_ls[parent_inode] = self._unique_dirent_list(ls)
-
-        for inode, extents in self._extents_map.items():
-            unique_extents = []
-            for ext in sorted(extents, key=lambda ext: ext.file_offset):
-                if ext not in unique_extents[-1:]:
-                    unique_extents.append(ext)
-            self._extents_map[inode] = unique_extents
 
     def _walk(self, dirpath: str, dirent: DirEnt):
         dirs = [ent for ent in self._inodes_ls[dirent.inode]
@@ -186,6 +182,17 @@ class Bcachefs:
         for d in dirs:
             for _ in self._walk(os.path.join(dirpath, d.name), d):
                 yield _
+
+    @staticmethod
+    def _unique_extent_list(inode_extents):
+        # It's possible to have multiple duplicated extents for a single inode
+        # and this implementation assumes that the last ones should be the
+        # correct ones.
+        unique_extent_list = []
+        for ent in sorted(inode_extents, key=lambda _: _.file_offset):
+            if ent not in unique_extent_list[-1:]:
+                unique_extent_list.append(ent)
+        return unique_extent_list
 
     @staticmethod
     def _unique_dirent_list(dirent_ls):

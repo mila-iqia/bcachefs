@@ -192,7 +192,7 @@ const struct bset *benz_bch_next_bset(const struct btree_node *p, const void *p_
 // == KEY_TYPE_MAX` then next key is returned
 const struct bkey *benz_bch_next_bkey(const struct bset *p, const struct bkey *c, enum bch_bkey_type type)
 {
-    const uint8_t *p_end = (const uint8_t*)p + p->u64s * BCH_U64S_SIZE;
+    const uint8_t *p_end = (const uint8_t*)p->start + p->u64s * BCH_U64S_SIZE;
     do
     {
         c = (const struct bkey*)benz_bch_next_sibling(p, sizeof(*p), p_end, c, U64S_BKEY);
