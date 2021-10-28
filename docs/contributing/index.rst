@@ -4,7 +4,7 @@ Contribute
 Setup
 ~~~~~
 
-Bcachefs use black to enforce style throughout the repo.
+Bcachefs use Black to enforce style throughout the repository.
 You can install a pre-commit hook that will format the code for you.
 
 .. code-block:: bash
