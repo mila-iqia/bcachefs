@@ -29,8 +29,6 @@ Multiprocessing
            except FileNotFoundError:
                return 0
 
-   image = filepath(image) 
-
    with Bcachefs(image) as fs:
        files = fs.namelist()
 
