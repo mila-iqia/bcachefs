@@ -17,7 +17,7 @@ The best way to create a new archive is to use the standard bcachefs tools.
    # more details at https://github.com/Delaunay/bcachefs-pytools
    pip install git+https://github.com/Delaunay/bcachefs-pytools
 
-   # Get the size of the dataset we want to make an image of
+   # Get the size of the disk image we want to create
    SIZE=$(du -shc . | tail -n 1 | cut -f 1)
 
    # Create a file with the size of your dataset
