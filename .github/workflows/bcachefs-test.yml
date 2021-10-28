@@ -7,7 +7,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-18.04, ubuntu-latest]
+        os: [ubuntu-latest]
         python-version: ['3.7', '3.8']
 
     steps:
@@ -26,6 +26,34 @@ jobs:
           git submodule update --init
           pip install -r requirements.txt
           pip install -r tests/requirements.txt
+
+      - name: Install bcachefs-tools
+        run: |
+          sudo apt-get update
+          sudo apt install gcc meson ninja-build
+          sudo apt install make pkg-config libaio-dev libblkid-dev\
+              libkeyutils-dev liblz4-dev libscrypt-dev libsodium-dev\
+              liburcu-dev libzstd-dev libudev-dev uuid-dev zlib1g-dev\
+              libfuse3-dev
+          
+          pip install git+https://github.com/Delaunay/bcachefs-pytools.git
+
+      - name: Generate Link Image Data
+        run: |
+          truncate -s 10MiB testdata/link_image
+          bcachefs format\
+            --block_size=4k\
+            --metadata_checksum=none\
+            --data_checksum=none\
+            --compression=none\
+            --str_hash=siphash\
+            --label=LabelDEADBEEF testdata/link_image
+          mkdir dataset_mount
+          bcachefs fusemount -s testdata/link_image dataset_mount
+
+          echo "File contents" > dataset_mount/0.txt
+          for i in {1..5000}; do ln "dataset_mount/0.txt" "dataset_mount/$i.txt"; done
+          fusermount3 -u dataset_mount
 
       - name: Install
         run: |
