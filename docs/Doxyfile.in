@@ -16,5 +16,5 @@ RECURSIVE              = YES
 EXCLUDE_PATTERNS       = *.py
 EXAMPLE_PATH           = "@CMAKE_SOURCE_DIR@/examples"
 IMAGE_PATH             = "@CMAKE_SOURCE_DIR@/Docs/_static"
-GENERATE_HTML          = YES
-HTML_OUTPUT            = html
+GENERATE_HTML          = NO
+GENERATE_XML           = YES

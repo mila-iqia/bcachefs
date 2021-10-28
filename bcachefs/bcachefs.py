@@ -11,6 +11,7 @@ import numpy as np
 try:
     from bcachefs.c_bcachefs import PyBcachefs as _Bcachefs, \
         PyBcachefs_iterator as _Bcachefs_iterator
+    
 except ImportError as exception:
     read_the_docs_build = os.environ.get('READTHEDOCS', None) == 'True'
 
@@ -19,6 +20,10 @@ except ImportError as exception:
 
     _Bcachefs = 0
     _Bcachefs_iterator = 0
+
+
+from bcachefs.testing import filepath
+path_to_file = filepath("testdata/mini_bcachefs.img")
 
 EXTENT_TYPE = 0
 INODE_TYPE = 1
@@ -45,15 +50,6 @@ class Extent:
 
     size: int
         size of the chunk
-
-    Examples
-    --------
-
-    >>> with open('/my/archive') as image:
-    ...     # go at the begining of the chunk
-    ...     image.seek(extent.offset)
-    ...     # read the entire chunk
-    ...     image.readinto(_bytes[extent.file_offset:extent.file_offset + extent.size])
 
     """
     inode: int = 0
@@ -120,7 +116,25 @@ LOSTFOUND_DIRENT = DirEnt(4096, 4097, DIR_TYPE, "lost+found")
 
 
 class _BcachefsFileBinary(io.BufferedIOBase):
-    """Python file interface for Bcachefs files"""
+    """Python file interface for Bcachefs files
+    
+    Parameters
+    ----------
+    name: str
+        name of the file being opened
+
+    extends
+        list of Extent
+
+    file: file object
+        underlying opened image file
+
+    inode: int
+        Inode of the file being opened
+
+    size: int
+        size of the file being opened
+    """
 
     def __init__(self, name, extents, file, inode, size):
         self.name = file
@@ -142,6 +156,7 @@ class _BcachefsFileBinary(io.BufferedIOBase):
         self._pos = 0  # absolute position inside the file
 
     def reset(self):
+        """Reset internal state to point to the begining of the file"""
         self._extent_pos = 0
         self._extend_read = 0
         self._pos = 0
@@ -168,7 +183,15 @@ class _BcachefsFileBinary(io.BufferedIOBase):
         return self._inode
 
     def read(self, n=-1) -> bytes:
-        """Read at most n bytes"""
+        """Read at most n bytes
+        
+        
+        Parameters
+        ----------
+        n: int
+            max size that can be read if -1 all the file is read
+        
+        """
         if n == -1:
             return self.readall()
 
@@ -206,6 +229,7 @@ class _BcachefsFileBinary(io.BufferedIOBase):
         The size of the buffer is not checked against the extent size,
         this means we could possibly read beyond the extent but the size returned
         will be inside the bounds.
+
         """
 
         # we ran out of extent, done
@@ -259,6 +283,7 @@ class _BcachefsFileBinary(io.BufferedIOBase):
         return True
 
     def seek(self, offset, whence=io.SEEK_SET):
+        """Seek a specific position inside the file"""
         if whence == io.SEEK_END:
             return self.seek(self._size + offset, io.SEEK_SET)
 
@@ -282,6 +307,7 @@ class _BcachefsFileBinary(io.BufferedIOBase):
             return offset
 
     def tell(self):
+        """Return the current possition of the file cursor"""
         return self._pos
 
     def detach(self):
@@ -311,9 +337,12 @@ class Bcachefs:
 
     Examples
     --------
-    >>> with BCacheFS('/path/to/image', 'r') as image:
-    ...     with image.open('file.bin', 'rb') as f:
-    ...         bytes = f.read()
+    >>> with Bcachefs(path_to_file, 'r') as image:
+    ...     with image.open('dir/subdir/file2', 'rb') as f:
+    ...         data = f.read()
+    ...         print(data.decode('utf-8'))
+    File content 2
+    <BLANKLINE>
 
     """
 
@@ -344,10 +373,19 @@ class Bcachefs:
 
         encoding: str
             string encoding to use, defaults to utf-8
+        
+        Raises
+        ------
+        FileNotFoundError when opening an file that does not exist
+
         """
         inode = name
         if isinstance(name, str):
-            inode = self.find_dirent(name).inode
+            dirent = self.find_dirent(name)
+
+            inode = None
+            if dirent is not None:
+                inode = dirent.inode
 
         extents = self._extents_map.get(inode)
 
@@ -364,6 +402,14 @@ class Bcachefs:
         Notes
         -----
         Added for parity with Zipfile interface
+
+        Examples
+        --------
+
+        >>> with Bcachefs(path_to_file, 'r') as image:
+        ...     print(image.namelist())
+        ['file1', 'n09332890/n09332890_29876.JPEG', 'dir/subdir/file2', 'n04467665/n04467665_63788.JPEG', 'n02033041/n02033041_3834.JPEG', 'n02445715/n02445715_16523.JPEG', 'n04584207/n04584207_7936.JPEG']
+
         """
 
         directories = self._inodes_ls.get(ROOT_DIRENT.inode, [])
@@ -394,17 +440,21 @@ class Bcachefs:
 
     @property
     def path(self) -> str:
+        """Path of the current image"""
         return self._path
 
     @property
     def size(self) -> int:
+        """Size of the current image"""
         return self._size
 
     @property
     def closed(self) -> bool:
+        """Is current image closed"""
         return self._closed
 
     def cd(self, path: str = "/"):
+        """Creates a cursor to a directory"""
         cursor = Cursor(
             self.path, self._extents_map, self._inodes_ls, self._inodes_tree
         )
@@ -432,6 +482,7 @@ class Bcachefs:
             self._closed = True
 
     def find_dirent(self, path: str = None) -> DirEnt:
+        """Resolve a path to its directory entry, returns none if it was not found"""
         if not path:
             dirent = self._dirent
         else:
@@ -461,6 +512,7 @@ class Bcachefs:
             return f.readall()
 
     def walk(self, top: str = None):
+        """Traverse the file system recursively"""
         if not top:
             top = self._pwd
             parent = self._dirent
@@ -471,6 +523,7 @@ class Bcachefs:
             return self._walk(top, parent)
 
     def _parse(self):
+        """Generate a cache of bcachefs btrees"""
         if self._extents_map:
             return
 
@@ -619,6 +672,7 @@ class BcachefsIter:
 
 
 class BcachefsIterExtent(BcachefsIter):
+    """Iterates over bcachefs extend btree"""
     def __init__(self, fs: _Bcachefs):
         super(BcachefsIterExtent, self).__init__(fs, EXTENT_TYPE)
 
@@ -627,6 +681,7 @@ class BcachefsIterExtent(BcachefsIter):
 
 
 class BcachefsIterInode(BcachefsIter):
+    """Iterates over bcachefs inode btree"""
     def __init__(self, fs: _Bcachefs):
         super(BcachefsIterInode, self).__init__(fs, INODE_TYPE)
 
@@ -635,6 +690,8 @@ class BcachefsIterInode(BcachefsIter):
 
 
 class BcachefsIterDirEnt(BcachefsIter):
+    """Iterates over bcachefs dirent btree"""
+
     def __init__(self, fs: _Bcachefs):
         super(BcachefsIterDirEnt, self).__init__(fs, DIRENT_TYPE)
 
