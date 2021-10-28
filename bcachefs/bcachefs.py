@@ -39,7 +39,7 @@ class Extent:
         position inside the disk image where the extent starts
 
     size: int
-        size of the chunk
+        size of the extent
 
     """
 
