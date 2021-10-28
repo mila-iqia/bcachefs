@@ -320,7 +320,7 @@ class _BcachefsFileBinary(io.BufferedIOBase):
 
 
 class Bcachefs:
-    """Opens a Bcachefs image for reading
+    """Opens a Bcachefs disk image for reading
 
     Parameters
     ----------
