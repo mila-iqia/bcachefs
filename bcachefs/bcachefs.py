@@ -120,7 +120,7 @@ class _BcachefsFileBinary(io.BufferedIOBase):
         list of Extent
 
     file: file object
-        underlying opened image file
+        underlying opened disk image file
 
     inode: int
         inode of the file being opened
