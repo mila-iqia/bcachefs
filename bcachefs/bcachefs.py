@@ -130,7 +130,7 @@ class _BcachefsFileBinary(io.BufferedIOBase):
         underlying opened image file
 
     inode: int
-        Inode of the file being opened
+        inode of the file being opened
 
     size: int
         size of the file being opened
@@ -184,7 +184,6 @@ class _BcachefsFileBinary(io.BufferedIOBase):
 
     def read(self, n=-1) -> bytes:
         """Read at most n bytes
-        
         
         Parameters
         ----------
@@ -307,7 +306,7 @@ class _BcachefsFileBinary(io.BufferedIOBase):
             return offset
 
     def tell(self):
-        """Return the current possition of the file cursor"""
+        """Returns the current possition of the file cursor"""
         return self._pos
 
     def detach(self):
