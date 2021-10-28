@@ -8,22 +8,10 @@ from PIL.Image import WEB
 
 import numpy as np
 
-try:
-    from bcachefs.c_bcachefs import (
-        PyBcachefs as _Bcachefs,
-        PyBcachefs_iterator as _Bcachefs_iterator,
-    )
-
-except ImportError as exception:
-    read_the_docs_build = os.environ.get("READTHEDOCS", None) == "True"
-
-    if not read_the_docs_build:
-        raise exception
-
-    from typing import Type
-
-    _Bcachefs = Type("_Bcachefs")
-    _Bcachefs_iterator = Type("_Bcachefs_iterator")
+from bcachefs.c_bcachefs import (
+    PyBcachefs as _Bcachefs,
+    PyBcachefs_iterator as _Bcachefs_iterator,
+)
 
 
 from bcachefs.testing import filepath
