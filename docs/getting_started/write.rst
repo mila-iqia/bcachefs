@@ -39,7 +39,7 @@ The best way to create a new archive is to use the standard bcachefs tools.
    # Mount our image for writing
    bcachefs fusemount -s disk.img disk_mount
 
-   # copy our dataset to the image
+   # copy our files to the disk image
    cp -r dataset dataset_mount
 
    # Dismount the image
