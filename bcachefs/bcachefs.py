@@ -36,7 +36,7 @@ class Extent:
         position of the extent in the logical file
 
     offset: int
-        position inside the image where the chunk starts
+        position inside the disk image where the extent starts
 
     size: int
         size of the chunk
