@@ -11,4 +11,5 @@ You can install a pre-commit hook that will format the code for you.
 
    pip install black
    pip install pre-commit
+   pre-commit install --install-hooks
 
