@@ -73,7 +73,7 @@ class DirEnt:
 
     Attributes
     ----------
-    parrent_inode: int
+    parent_inode: int
         inode of the parent entry (directory)
 
     inode: int
