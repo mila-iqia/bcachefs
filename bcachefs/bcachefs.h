@@ -823,7 +823,7 @@ const struct bch_val *Bcachefs_iter_next(const Bcachefs *this, Bcachefs_iterator
 
 /*! @brief free all the resources allocated by the iterator
  *
- *  @param [in] this the archive we are iterating through
+ *  @param [in] this the disk image we are iterating through
  *  @param [in] iter the iterator struct
  * 
  *  @return 1 on success and 0 on failure
