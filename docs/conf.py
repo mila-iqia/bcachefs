@@ -269,17 +269,6 @@ texinfo_documents = [
 
 autodoc_mock_imports = ["_version", "utils._appdirs", "bcachefs.c_bcachefs", "numpy"]
 
-################################################################################
-#                             Numpy Doc Extension                              #
-################################################################################
-
-# sphinx.ext.autosummary will automatically be loaded as well. So:
-autosummary_generate = glob.glob("reference/*.rst")
-
-# Generate ``plot::`` for ``Examples`` sections which contain matplotlib
-numpydoc_use_plots = False
-
-# Create a Sphinx table of contents for the lists of class methods and
-# attributes. If a table of contents is made, Sphinx expects each entry to have
-# a separate page.
-numpydoc_class_members_toctree = False
+doctest_global_setup = """
+from testing import mini_bcachefs_img
+"""
