@@ -31,7 +31,7 @@ The best way to create a new archive is to use the standard bcachefs tools.
         --compression=none\
         --str_hash=siphash\
         --label=LabelDEADBEEF\
-        dataset_image
+        disk.img
 
    # Create a mount point we can write to
    mkdir dataset_mount
