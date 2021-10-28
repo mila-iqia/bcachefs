@@ -12,8 +12,8 @@ from bcachefs.testing import filepath
 
 
 def pil_loader(file_object):
-    img = Image.open(file_object, 'r')
-    img = img.convert('RGB')
+    img = Image.open(file_object, "r")
+    img = img.convert("RGB")
     return img
 
 
@@ -21,7 +21,9 @@ MINI = "testdata/mini_bcachefs.img"
 FILE = "n02033041/n02033041_3834.JPEG"
 
 
-with open(filepath(os.path.join("testdata/mini_content", FILE)), "rb") as original:
+with open(
+    filepath(os.path.join("testdata/mini_content", FILE)), "rb"
+) as original:
     sha = sha256()
     original_data = original.read()
     sha.update(original_data)
@@ -119,7 +121,7 @@ def test_file_seek(offset):
         with fs.open(FILE) as saved:
             saved.seek(offset)
             data = saved.read(offset)
-            assert data == original_data[offset:offset * 2]
+            assert data == original_data[offset : offset * 2]
 
 
 def test_read_image():
