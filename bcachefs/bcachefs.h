@@ -802,7 +802,7 @@ int Bcachefs_close(Bcachefs *this);
 
 /*! @brief prepare a bcachefs iterator to go through a bcachefs btree
  *
- *  @param [in] this the archive we want to iteratte through
+ *  @param [in] this the disk image we want to iterate through
  *  @param [out] iter the iterator struct to initialize
  *  @param [in] type the btree type we want to iterate over
  * 
