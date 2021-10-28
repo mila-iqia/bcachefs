@@ -792,7 +792,7 @@ int Bcachefs_fini(Bcachefs *this);
 int Bcachefs_open(Bcachefs *this, const char *path);
 
 
-/*! @brief close the Bcachefs image
+/*! @brief close the Bcachefs disk image
  *
  *  @param [in] this the image to close
  *  @return 1 on success and 0 on failure
