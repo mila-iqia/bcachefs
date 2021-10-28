@@ -33,7 +33,7 @@ class Extent:
         inode of the file
 
     file_offset: int
-        position of the file chunk
+        position of the extent in the logical file
 
     offset: int
         position inside the image where the chunk starts
