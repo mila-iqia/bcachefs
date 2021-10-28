@@ -195,21 +195,21 @@ class _BcachefsFileBinary(io.BufferedIOBase):
         if n == -1:
             return self.readall()
 
-        buffer = np.empty(n, dtype='<u1')
+        buffer = np.empty(n, dtype="<u1")
         view = memoryview(buffer)
         size = self.readinto(view)
         return bytes(buffer[:size])
 
     def read1(self, size: int) -> bytes:
         """Read at most size bytes with at most one call to the underlying stream"""
-        buffer = np.empty(size, dtype='<u1')
+        buffer = np.empty(size, dtype="<u1")
         view = memoryview(buffer)
         size = self.readinto1(view)
         return bytes(buffer[:size])
 
     def readall(self) -> bytes:
         """Most efficient way to read a file, single allocation"""
-        buffer = np.empty(self._size, dtype='<u1')
+        buffer = np.empty(self._size, dtype="<u1")
         memory = memoryview(buffer)
 
         for extent in self._extents:
@@ -421,7 +421,9 @@ class Bcachefs:
         for dirent in directories:
             if dirent.is_dir:
                 children = self._inodes_ls.get(dirent.inode, [])
-                names.extend(self._namelist(os.path.join(path, dirent.name), children))
+                names.extend(
+                    self._namelist(os.path.join(path, dirent.name), children)
+                )
 
             if dirent.is_file:
                 names.append(os.path.join(path, dirent.name))
@@ -489,7 +491,9 @@ class Bcachefs:
             parts = [p for p in path.split("/") if p]
             dirent = self._dirent if not path.startswith("/") else ROOT_DIRENT
             while parts:
-                dirent = self._inodes_tree.get((dirent.inode, parts.pop(0)), None)
+                dirent = self._inodes_tree.get(
+                    (dirent.inode, parts.pop(0)), None
+                )
                 if dirent is None:
                     break
         return dirent
