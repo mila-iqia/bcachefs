@@ -28,7 +28,7 @@ FILE_TYPE = 8
 
 @dataclass(eq=True, frozen=True)
 class Extent:
-    """Specify the location of a chunk of a file inside the image
+    """Specify the location of an extent of a file inside the disk image
 
     Attributes
     ----------
