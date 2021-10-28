@@ -14,9 +14,6 @@ from bcachefs.c_bcachefs import (
 )
 
 
-from bcachefs.testing import filepath
-
-path_to_file = filepath("testdata/mini_bcachefs.img")
 
 EXTENT_TYPE = 0
 INODE_TYPE = 1
