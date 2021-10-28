@@ -4,16 +4,26 @@ import math
 from hashlib import sha256
 
 import pytest
+from PIL import Image, ImageFile, UnidentifiedImageError
 
 import bcachefs.bcachefs as bchfs
 from bcachefs import Bcachefs
 from bcachefs.testing import filepath
 
+
+def pil_loader(file_object):
+    img = Image.open(file_object, "r")
+    img = img.convert("RGB")
+    return img
+
+
 MINI = "testdata/mini_bcachefs.img"
 FILE = "n02033041/n02033041_3834.JPEG"
 
 
-with open(filepath(os.path.join("testdata/mini_content", FILE)), "rb") as original:
+with open(
+    filepath(os.path.join("testdata/mini_content", FILE)), "rb"
+) as original:
     sha = sha256()
     original_data = original.read()
     sha.update(original_data)
@@ -66,10 +76,12 @@ def test_file_read1(size):
             sha = sha256()
 
             k = 0
-            while data := saved.read1(size):
+            data = saved.read1(size)
+            while data:
                 all_data.append(data)
                 k += 1
                 sha.update(data)
+                data = saved.read1(size)
 
             bcachefs_hash = sha.digest()
 
@@ -90,8 +102,10 @@ def test_file_readinto1(size):
             sha = sha256()
 
             buffer = bytearray(size)
-            while size := saved.readinto1(buffer):
+            size = saved.readinto1(buffer)
+            while size:
                 sha.update(buffer[:size])
+                size = saved.readinto1(buffer)
 
             bcachefs_hash = sha.digest()
 
@@ -105,7 +119,29 @@ def test_file_seek(offset):
 
     with Bcachefs(image) as fs:
         with fs.open(FILE) as saved:
-
             saved.seek(offset)
-            data = saved.read(1)
-            assert data[0] == original_data[offset]
+            data = saved.read(offset)
+            assert data == original_data[offset : offset * 2]
+
+
+def test_read_image():
+    # no seek works with PIL
+    image = filepath(MINI)
+    assert os.path.exists(image)
+
+    def no_seek(*args):
+        raise io.UnsupportedOperation
+
+    with Bcachefs(image) as fs:
+        with fs.open(FILE) as image_file:
+            image_file.seek = no_seek
+            image = pil_loader(image_file)
+
+
+def test_read_image_with_seek():
+    image = filepath(MINI)
+    assert os.path.exists(image)
+
+    with Bcachefs(image) as fs:
+        with fs.open(FILE) as image_file:
+            image = pil_loader(image_file)

@@ -4,6 +4,8 @@ import io
 import os
 from dataclasses import dataclass
 
+from PIL.Image import WEB
+
 import numpy as np
 
 from bcachefs.c_bcachefs import (
@@ -19,7 +21,7 @@ DIR_TYPE = 4
 FILE_TYPE = 8
 
 
-@dataclass
+@dataclass(eq=True, frozen=True)
 class Extent:
     inode: int = 0
     file_offset: int = 0
@@ -27,13 +29,13 @@ class Extent:
     size: int = 0
 
 
-@dataclass
+@dataclass(eq=True, frozen=True)
 class Inode:
     inode: int = 0
     size: int = 0
 
 
-@dataclass
+@dataclass(eq=True, frozen=True)
 class DirEnt:
     parent_inode: int = 0
     inode: int = 0
@@ -69,7 +71,7 @@ class _BcachefsFileBinary(io.BufferedIOBase):
         self._file = file
 
         # sort by offset so the extents are always in the right order
-        sorted(extents, key=lambda extent: extent.offset)
+        sorted(extents, key=lambda extent: extent.file_offset)
         self._extents = extents
 
         self._extent_pos = 0  # current extent being read
@@ -80,6 +82,8 @@ class _BcachefsFileBinary(io.BufferedIOBase):
 
     def reset(self):
         self._extent_pos = 0
+        self._extend_read = 0
+        self._pos = 0
 
     def __enter__(self):
         return self
@@ -107,34 +111,31 @@ class _BcachefsFileBinary(io.BufferedIOBase):
         if n == -1:
             return self.readall()
 
-        buffer = bytearray(n)
+        buffer = np.empty(n, dtype="<u1")
         view = memoryview(buffer)
-        return self.readinto(view)
+        size = self.readinto(view)
+        return bytes(buffer[:size])
 
     def read1(self, size: int) -> bytes:
         """Read at most size bytes with at most one call to the underlying stream"""
-        buffer = bytearray(size)
-        size = self.readinto1(buffer)
-        return buffer[:size]
+        buffer = np.empty(size, dtype="<u1")
+        view = memoryview(buffer)
+        size = self.readinto1(view)
+        return bytes(buffer[:size])
 
     def readall(self) -> bytes:
         """Most efficient way to read a file, single allocation"""
-        buffer = bytearray(self._size)
-        data = []
-
-        s = 0
-        e = 0
-
+        buffer = np.empty(self._size, dtype="<u1")
         memory = memoryview(buffer)
 
         for extent in self._extents:
-            s = e
+            s = extent.file_offset
             e = s + extent.size
 
             self._file.seek(extent.offset)
             self._file.readinto(memory[s:e])
 
-        return buffer
+        return bytes(buffer)
 
     def readinto1(self, b: memoryview) -> int:
         """Read at most one extend
@@ -182,7 +183,7 @@ class _BcachefsFileBinary(io.BufferedIOBase):
         while size < n and not self.closed:
             size += self.readinto1(b[size:])
 
-        return b
+        return size
 
     @property
     def isatty(self):
@@ -208,10 +209,10 @@ class _BcachefsFileBinary(io.BufferedIOBase):
 
             e = 0
             for i, extent in enumerate(self._extents):
-                s = e
+                s = extent.file_offset
                 e = s + extent.size
 
-                if s < offset < e:
+                if s <= offset < e:
                     self._extent_pos = i
                     self._extent_read = offset - s
                     self._pos = offset
@@ -265,7 +266,6 @@ class Bcachefs:
         self._inodes_ls = {ROOT_DIRENT.inode: []}
         self._inodes_tree = {}
         self._inode_map = {}
-        self._open()
 
     def open(self, name: [str, int], mode: str = "rb", encoding: str = "utf-8"):
         """Open a file inside the image for reading
@@ -301,12 +301,27 @@ class Bcachefs:
         -----
         Added for parity with Zipfile interface
         """
-        files = []
-        for dirent in BcachefsIterDirEnt(self._filesystem):
-            files.append(dirent)
-        return files
+
+        directories = self._inodes_ls.get(ROOT_DIRENT.inode, [])
+        return self._namelist("", directories)
+
+    def _namelist(self, path, directories):
+        names = []
+
+        for dirent in directories:
+            if dirent.is_dir:
+                children = self._inodes_ls.get(dirent.inode, [])
+                names.extend(
+                    self._namelist(os.path.join(path, dirent.name), children)
+                )
+
+            if dirent.is_file:
+                names.append(os.path.join(path, dirent.name))
+
+        return names
 
     def __enter__(self):
+        self._open()
         return self
 
     def __exit__(self, _type, _value, _traceback):
@@ -344,8 +359,11 @@ class Bcachefs:
 
     def close(self):
         if not self._closed:
-            self._filesystem.close()
-            self._filesystem = None
+            # if the object was pickled we did not need the filesystem
+            # to be set
+            if self._filesystem:
+                self._filesystem.close()
+                self._filesystem = None
             self._size = 0
             self._file.close()
             self._file = None
@@ -358,7 +376,9 @@ class Bcachefs:
             parts = [p for p in path.split("/") if p]
             dirent = self._dirent if not path.startswith("/") else ROOT_DIRENT
             while parts:
-                dirent = self._inodes_tree.get((dirent.inode, parts.pop(0)), None)
+                dirent = self._inodes_tree.get(
+                    (dirent.inode, parts.pop(0)), None
+                )
                 if dirent is None:
                     break
         return dirent
@@ -409,6 +429,9 @@ class Bcachefs:
         for inode in BcachefsIterInode(self._filesystem):
             self._inode_map[inode.inode] = inode.size
 
+        for inode, extents in self._extents_map.items():
+            self._extents_map[inode] = self._unique_extent_list(extents)
+
         for parent_inode, ls in self._inodes_ls.items():
             self._inodes_ls[parent_inode] = self._unique_dirent_list(ls)
 
@@ -417,14 +440,53 @@ class Bcachefs:
         files = [ent for ent in self._inodes_ls[dirent.inode] if not ent.is_dir]
         yield dirpath, dirs, files
         for d in dirs:
-            for _ in self._walk(os.path.join(dirpath, d.name), d):
-                yield _
+            yield from self._walk(os.path.join(dirpath, d.name), d)
+
+    @staticmethod
+    def _unique_extent_list(inode_extents):
+        # It's possible to have multiple duplicated extents for a single inode
+        # and this implementation assumes that the last ones should be the
+        # correct ones.
+        unique_extent_list = []
+        for ent in sorted(inode_extents, key=lambda _: _.file_offset):
+            if ent not in unique_extent_list[-1:]:
+                unique_extent_list.append(ent)
+        return unique_extent_list
 
     @staticmethod
     def _unique_dirent_list(dirent_ls):
         # It's possible to have multiple inodes for a single file and this
-        # implemetation assumes that the last inode should be the correct one.
+        # implementation assumes that the last inode should be the correct one.
         return list({ent.name: ent for ent in dirent_ls}.values())
+
+    def __getstate__(self):
+        return dict(
+            path=self._path,
+            size=self._size,
+            closed=self._closed,
+            pwd=self._pwd,
+            dirent=self._dirent,
+            extents_map=self._extents_map,
+            inode_ls=self._inodes_ls,
+            inode_tree=self._inodes_tree,
+            inode_map=self._inode_map,
+        )
+
+    def __setstate__(self, state):
+        self._path = state["path"]
+        self._size = state["size"]
+        self._closed = state["closed"]
+
+        if not self._closed:
+            self._file = open(self._path, "rb")
+
+        self._filesystem = None
+        self._pwd = state["pwd"]
+        self._dirent = state["dirent"]
+        self._extents_map = state["extents_map"]
+        self._inodes_ls = state["inode_ls"]
+        self._inodes_tree = state["inode_tree"]
+        self._inode_map = state["inode_map"]
 
 
 class Cursor(Bcachefs):

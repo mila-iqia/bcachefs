@@ -4,7 +4,11 @@ on: [push, pull_request]
 
 jobs:
   bchfs-compile:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-18.04, ubuntu-latest]
+        python-version: ['3.7', '3.8']
 
     steps:
       - uses: actions/checkout@v1
@@ -12,10 +16,10 @@ jobs:
           submodules: true
           fetch-depth: 0
 
-      - name: Set up Python 3.8
+      - name: Set up Python
         uses: actions/setup-python@v1
         with:
-          python-version: 3.8
+          python-version: ${{ matrix.python-version }}
 
       - name: Install Requirements
         run: |
@@ -29,10 +33,13 @@ jobs:
 
       - name: Tests
         run: | 
-          COVERAGE_FILE=.coverage_py.xml coverage run --parallel-mode -m pytest tests/
+          coverage run --parallel-mode -m pytest tests/
+          coverage combine
+          coverage report -m
+          coverage xml
           gcovr -r . -x -o .coverage_c.xml
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v2
         with:
-          files: .coverage_c.xml, .coverage_py.xml
+          files: .coverage_c.xml,coverage.xml

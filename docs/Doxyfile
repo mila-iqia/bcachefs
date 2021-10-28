@@ -1,0 +1,20 @@
+
+PROJECT_NAME           = "bcachefs"
+PROJECT_NUMBER         = "Unknown"
+OUTPUT_DIRECTORY       = "/home/newton/work/bcachefs/docs/_build"
+ALIASES  = "rst=\verbatim embed:rst:leading-asterisk"
+ALIASES += "endrst=\endverbatim"
+OPTIMIZE_OUTPUT_FOR_C  = YES
+HIDE_UNDOC_MEMBERS     = YES
+HIDE_UNDOC_CLASSES     = YES
+HIDE_IN_BODY_DOCS      = YES
+WARN_FORMAT            = "$file:$line: $text"
+INPUT                  = "/home/newton/work/bcachefs/bcachefs"
+INPUT_ENCODING         = UTF-8
+FILE_PATTERNS          = *.h
+RECURSIVE              = YES
+EXCLUDE_PATTERNS       = *.py
+EXAMPLE_PATH           = "/home/newton/work/bcachefs/examples"
+IMAGE_PATH             = "/home/newton/work/bcachefs/Docs/_static"
+GENERATE_HTML          = NO
+GENERATE_XML           = YES
