@@ -782,7 +782,7 @@ typedef struct {
 
 int Bcachefs_fini(Bcachefs *this);
 
-/*! @brief  Open a Bcachefs image for reading
+/*! @brief  Open a Bcachefs disk image for reading
  * 
  *  @param [out] this the bcachefs struct to use for the initialization
  *  @param [in] path the path to the image
