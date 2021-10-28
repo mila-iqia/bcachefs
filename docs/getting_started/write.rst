@@ -21,7 +21,7 @@ The best way to create a new archive is to use the standard bcachefs tools.
    SIZE=$(du -shc . | tail -n 1 | cut -f 1)
 
    # Create a file with the size of your dataset
-   truncate -s $SIZE dataset_image
+   truncate -s $SIZE disk.img
 
    # Format the file using bcachefs file format
    bcachefs format\
