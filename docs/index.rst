@@ -2,7 +2,7 @@ Bcachefs
 ========
 
 Bcachefs leverage the bcachefs_ filesystem technology to create readonly
-dataset image optimized for reading.
+disk image optimized for reading.
 
 .. _bcachefs: https://bcachefs.org/
 
