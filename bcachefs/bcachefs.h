@@ -813,7 +813,7 @@ int Bcachefs_iter(const Bcachefs *this, Bcachefs_iterator *iter, enum btree_id t
 
 /*! @brief fetch next value from the iterator
  *
- *  @param [in] this the archive we are iterating through
+ *  @param [in] this the disk image we are iterating through
  *  @param [in] iter the iterator struct
  * 
  *  @return the next value or null if we reached the end
