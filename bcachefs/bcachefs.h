@@ -833,7 +833,7 @@ int Bcachefs_iter_fini(const Bcachefs *this, Bcachefs_iterator *iter);
 
 /*! @brief extract extent information from a bch_val
  * 
- *  @param [in] this the archive are reading from
+ *  @param [in] this the disk image we are reading from
  *  @param [in] iter the iterator pointing to the value we want to extract
  * 
  *  @return the extracted value
