@@ -1,4 +1,4 @@
-Creating a new image
+Creating a new disk image
 ~~~~~~~~~~~~~~~~~~~~
 
 Bcachefs focus exclusively on reading Bcachefs archive.
