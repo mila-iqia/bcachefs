@@ -325,7 +325,7 @@ class Bcachefs:
     Parameters
     ----------
     path: str
-        path to the image
+        path to the disk image
 
     Examples
     --------
