@@ -9,21 +9,25 @@ from PIL.Image import WEB
 import numpy as np
 
 try:
-    from bcachefs.c_bcachefs import PyBcachefs as _Bcachefs, \
-        PyBcachefs_iterator as _Bcachefs_iterator
-    
+    from bcachefs.c_bcachefs import (
+        PyBcachefs as _Bcachefs,
+        PyBcachefs_iterator as _Bcachefs_iterator,
+    )
+
 except ImportError as exception:
-    read_the_docs_build = os.environ.get('READTHEDOCS', None) == 'True'
+    read_the_docs_build = os.environ.get("READTHEDOCS", None) == "True"
 
     if not read_the_docs_build:
         raise exception
 
     from typing import Type
-    _Bcachefs = Type('_Bcachefs')
-    _Bcachefs_iterator = Type('_Bcachefs_iterator')
+
+    _Bcachefs = Type("_Bcachefs")
+    _Bcachefs_iterator = Type("_Bcachefs_iterator")
 
 
 from bcachefs.testing import filepath
+
 path_to_file = filepath("testdata/mini_bcachefs.img")
 
 EXTENT_TYPE = 0
@@ -53,6 +57,7 @@ class Extent:
         size of the chunk
 
     """
+
     inode: int = 0
     file_offset: int = 0
     offset: int = 0
@@ -72,6 +77,7 @@ class Inode:
         file size
 
     """
+
     inode: int = 0
     size: int = 0
 
@@ -95,6 +101,7 @@ class DirEnt:
         name of current entry (file or directory)
 
     """
+
     parent_inode: int = 0
     inode: int = 0
     type: int = 0
@@ -118,7 +125,7 @@ LOSTFOUND_DIRENT = DirEnt(4096, 4097, DIR_TYPE, "lost+found")
 
 class _BcachefsFileBinary(io.BufferedIOBase):
     """Python file interface for Bcachefs files
-    
+
     Parameters
     ----------
     name: str
@@ -185,12 +192,12 @@ class _BcachefsFileBinary(io.BufferedIOBase):
 
     def read(self, n=-1) -> bytes:
         """Read at most n bytes
-        
+
         Parameters
         ----------
         n: int
             max size that can be read if -1 all the file is read
-        
+
         """
         if n == -1:
             return self.readall()
@@ -373,7 +380,7 @@ class Bcachefs:
 
         encoding: str
             string encoding to use, defaults to utf-8
-        
+
         Raises
         ------
         FileNotFoundError when opening an file that does not exist
@@ -677,6 +684,7 @@ class BcachefsIter:
 
 class BcachefsIterExtent(BcachefsIter):
     """Iterates over bcachefs extend btree"""
+
     def __init__(self, fs: _Bcachefs):
         super(BcachefsIterExtent, self).__init__(fs, EXTENT_TYPE)
 
@@ -686,6 +694,7 @@ class BcachefsIterExtent(BcachefsIter):
 
 class BcachefsIterInode(BcachefsIter):
     """Iterates over bcachefs inode btree"""
+
     def __init__(self, fs: _Bcachefs):
         super(BcachefsIterInode, self).__init__(fs, INODE_TYPE)
 

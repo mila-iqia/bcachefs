@@ -28,3 +28,4 @@ Documentation
 
    getting_started/index
    api/index
+   contributing/index
