@@ -853,7 +853,7 @@ Bcachefs_inode Bcachefs_iter_make_inode(const Bcachefs *this, Bcachefs_iterator 
 
 /*! @brief extract dirent information from a bch_val
  * 
- *  @param [in] this the archive are reading from
+ *  @param [in] this the disk image we are reading from
  *  @param [in] iter the iterator pointing to the value we want to extract
  * 
  *  @return the extracted value
