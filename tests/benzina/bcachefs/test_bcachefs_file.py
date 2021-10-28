@@ -74,10 +74,12 @@ def test_file_read1(size):
             sha = sha256()
 
             k = 0
-            while data := saved.read1(size):
+            data = saved.read1(size)
+            while data:
                 all_data.append(data)
                 k += 1
                 sha.update(data)
+                data = saved.read1(size)
 
             bcachefs_hash = sha.digest()
 
@@ -98,8 +100,10 @@ def test_file_readinto1(size):
             sha = sha256()
 
             buffer = bytearray(size)
-            while size := saved.readinto1(buffer):
+            size = saved.readinto1(buffer)
+            while size:
                 sha.update(buffer[:size])
+                size = saved.readinto1(buffer)
 
             bcachefs_hash = sha.digest()
 
