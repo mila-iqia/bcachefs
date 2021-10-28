@@ -816,7 +816,7 @@ int Bcachefs_iter(const Bcachefs *this, Bcachefs_iterator *iter, enum btree_id t
  *  @param [in] this the disk image we are iterating through
  *  @param [in] iter the iterator struct
  * 
- *  @return the next value or null if we reached the end
+ *  @return the next value or `NULL` if we reached the end
  */
 const struct bch_val *Bcachefs_iter_next(const Bcachefs *this, Bcachefs_iterator *iter);
 
