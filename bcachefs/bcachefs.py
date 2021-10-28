@@ -18,8 +18,9 @@ except ImportError as exception:
     if not read_the_docs_build:
         raise exception
 
-    _Bcachefs = 0
-    _Bcachefs_iterator = 0
+    from typing import Type
+    _Bcachefs = Type('_Bcachefs')
+    _Bcachefs_iterator = Type('_Bcachefs_iterator')
 
 
 from bcachefs.testing import filepath
