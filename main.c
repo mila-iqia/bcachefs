@@ -5,14 +5,15 @@
 #include "bcachefs/bcachefs.h"
 
 #define MINI "testdata/mini_bcachefs.img"
-
+#define BIG  "testdata/big_content.img"
 
 int main()
 {
     Bcachefs bchfs = {0};
-    if (Bcachefs_open(&bchfs, MINI)) {}
+    if (Bcachefs_open(&bchfs, BIG)) {}
     else
     {
+        printf("File does not exist\n");
         return 1;
     }
     struct bch_sb *sb = bchfs.sb;
@@ -37,7 +38,7 @@ int main()
     printf("\n");
     printf("jset_magic:%llu\n", jset_magic);
 
-   
+
     // Extent
     // ----------------------------------------------------------------------------
     {
@@ -50,16 +51,16 @@ int main()
         while (bch_val)
         {
             if (bch_val == NULL)
-            {         
+            {
                 continue;
             }
 
             Bcachefs_extent extent = Bcachefs_iter_make_extent(&bchfs, &bchfs_iter);
-            printf("extent %3d: i:%llu fo:%10llu, o:%10llu, s:%10llu\n", 
+            printf("extent %3d: i:%llu fo:%10llu, o:%10llu, s:%10llu\n",
                 i,
-                extent.inode, 
-                extent.file_offset, 
-                extent.offset, 
+                extent.inode,
+                extent.file_offset,
+                extent.offset,
                 extent.size);
 
             bch_val = Bcachefs_iter_next(&bchfs, &bchfs_iter);
@@ -85,7 +86,7 @@ int main()
         }
         Bcachefs_iter_fini(&bchfs, &bchfs_iter);
     }
-    
+
     // Dirent
     // -----------------------------------------------------------------------------
     {
