@@ -272,5 +272,5 @@ doctest_global_setup = """
 import os
 _this = os.path.dirname(os.path.abspath(__file__))
 _project_root = os.path.abspath(os.path.join(this, ".."))
-path_to_file = os.path.join(_project_root, "testdata/mini_bcachefs.img")
+global path_to_file = os.path.join(_project_root, "testdata/mini_bcachefs.img")
 """
