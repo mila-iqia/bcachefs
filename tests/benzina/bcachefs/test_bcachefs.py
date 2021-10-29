@@ -9,6 +9,8 @@ from bcachefs.testing import filepath
 
 
 MINI = "testdata/mini_bcachefs.img"
+BIG = "testdata/big_content.img"
+LINK = "testdata/link_content.img"
 
 TEST_IMAGES = [MINI]
 
@@ -105,6 +107,20 @@ def test_ls(image):
         assert ls == ["subdir"]
         ls = [e.name for e in fs.ls("/n04467665")]
         assert ls == ["n04467665_63788.JPEG"]
+
+
+def test_read_big():
+    image = filepath(BIG)
+    assert os.path.exists(image)
+
+    with Bcachefs(image) as fs:
+        inode = fs.find_dirent("0").inode
+        f0 = fs.read_file(inode)
+
+        inode = fs.find_dirent("1").inode
+        f1 = fs.read_file(inode)
+
+        assert f1 == f0
 
 
 @pytest.mark.parametrize("image", TEST_IMAGES)
