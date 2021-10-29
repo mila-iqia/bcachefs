@@ -56,7 +56,6 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.extlinks",
     "sphinx.ext.autosummary",
-    "numpydoc",
     "sphinxcontrib.bibtex",
     # For C code
     "breathe",
@@ -260,7 +259,7 @@ texinfo_documents = [
         "bcachefs Documentation",
         author,
         "bcachefs",
-        "Fast Dataset Archive for HPC",
+        "Fast Disk Image for HPC",
         "Miscellaneous",
     ),
 ]
@@ -270,5 +269,8 @@ texinfo_documents = [
 autodoc_mock_imports = ["_version", "utils._appdirs", "bcachefs.c_bcachefs", "numpy"]
 
 doctest_global_setup = """
-from testing import mini_bcachefs_img
+import os
+_this = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.abspath(os.path.join(this, ".."))
+path_to_file = os.path.join(_project_root, "testdata/mini_bcachefs.img")
 """
