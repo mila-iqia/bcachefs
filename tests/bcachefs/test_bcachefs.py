@@ -5,7 +5,7 @@ import multiprocessing as mp
 
 import bcachefs.bcachefs as bchfs
 from bcachefs import Bcachefs
-from bcachefs.testing import filepath
+from testing import filepath
 
 
 MINI = "testdata/mini_bcachefs.img"
@@ -228,14 +228,14 @@ def test_namelist():
     assert os.path.exists(image)
 
     with Bcachefs(image) as fs:
-        assert fs.namelist() == [
-            "file1",
-            "n09332890/n09332890_29876.JPEG",
+        assert sorted(fs.namelist()) == [
             "dir/subdir/file2",
-            "n04467665/n04467665_63788.JPEG",
+            "file1",
             "n02033041/n02033041_3834.JPEG",
             "n02445715/n02445715_16523.JPEG",
+            "n04467665/n04467665_63788.JPEG",
             "n04584207/n04584207_7936.JPEG",
+            "n09332890/n09332890_29876.JPEG",
         ]
 
 

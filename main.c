@@ -78,7 +78,7 @@ int main()
         while (bch_val)
         {
             Bcachefs_inode inode = Bcachefs_iter_make_inode(&bchfs, &bchfs_iter);
-            printf("inode %3d: i:%lu, s:%lu\n", i, inode.inode, inode.size);
+            printf("inode %3d: i:%llu, s:%llu\n", i, inode.inode, inode.size);
 
             i += 1;
             bch_val = Bcachefs_iter_next(&bchfs, &bchfs_iter);

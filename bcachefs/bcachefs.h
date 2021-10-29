@@ -755,6 +755,9 @@ typedef struct Bcachefs_iterator {
     const struct bch_val *bch_val;              //! current value stored inside along side the key
     struct btree_node *btree_node;              //! current btree node
     struct Bcachefs_iterator *next_it;          //! pointer to the children btree node if iterating over nested Btrees
+    const struct bset **_bsets;                 //! bsets list inside the btree
+    const struct bset **_bsets_end;             //! bsets list end pointer
+    const struct bset **_bset;                  //! current bset inside the list
 } Bcachefs_iterator;
 
 //! Decoded value from the extend btree

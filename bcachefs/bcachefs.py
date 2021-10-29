@@ -4,8 +4,6 @@ import io
 import os
 from dataclasses import dataclass
 
-from PIL.Image import WEB
-
 import numpy as np
 
 from bcachefs.c_bcachefs import (
@@ -535,7 +533,7 @@ class Bcachefs:
             self._extents_map[extent.inode].append(extent)
 
         for inode in BcachefsIterInode(self._filesystem):
-            self._inode_map[inode.inode] = inode.size
+            self._inode_map.setdefault(inode.inode, inode.size)
 
         for inode, extents in self._extents_map.items():
             self._extents_map[inode] = self._unique_extent_list(extents)
@@ -564,8 +562,8 @@ class Bcachefs:
     @staticmethod
     def _unique_dirent_list(dirent_ls):
         # It's possible to have multiple inodes for a single file and this
-        # implementation assumes that the last inode should be the correct one.
-        return list({ent.name: ent for ent in dirent_ls}.values())
+        # implementation assumes that the first inode should be the correct one.
+        return list({ent.name: ent for ent in reversed(dirent_ls)}.values())
 
     def __getstate__(self):
         return dict(
