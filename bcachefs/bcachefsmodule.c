@@ -37,10 +37,8 @@ static PyObject *PyBcachefs_open(PyBcachefs *self, PyObject *const *args, Py_ssi
 {
     (void)kwnames;
     if (nargs != 1 || !Bcachefs_open(&self->_fs, (void*)PyUnicode_1BYTE_DATA(args[0])))
-    {
-        PyErr_SetString(PyExc_RuntimeError, "Error opening Bcachefs image file");
-        return NULL;
-    }
+        return PyErr_Format(PyExc_RuntimeError, "Error opening Bcachefs image file");
+    
     Py_INCREF(Py_None);
     return Py_None;
 }
@@ -52,10 +50,8 @@ static PyObject *PyBcachefs_open(PyBcachefs *self, PyObject *const *args, Py_ssi
 static PyObject *PyBcachefs_close(PyBcachefs *self)
 {
     if (!Bcachefs_close(&self->_fs))
-    {
-        PyErr_SetString(PyExc_RuntimeError, "Error closing Bcachefs image file");
-        return NULL;
-    }
+        return PyErr_Format(PyExc_RuntimeError, "Error closing Bcachefs image file");
+    
     Py_INCREF(Py_None);
     return Py_None;
 }
@@ -67,19 +63,30 @@ static PyObject *PyBcachefs_close(PyBcachefs *self)
 static PyObject *PyBcachefs_iter(PyBcachefs *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
     (void)kwnames;
-    PyBcachefs_iterator *iter = (void*)PyObject_CallObject((PyObject*)&PyBcachefs_iteratorType, NULL);
-    if (iter)
-    {
-        Py_INCREF(self);
-        iter->_pyfs = self;
+    enum btree_id btree_id;
+    PyBcachefs_iterator* iter;
+    
+    if(nargs != 1)
+        return PyErr_Format(PyExc_RuntimeError, "iter() takes only one argument, the BTREE_ID!");
+    
+    btree_id = (enum btree_id)(int)PyLong_AsLong(args[0]);
+    if(PyErr_Occurred())
+        return NULL;/* Error type already set */
+    
+    iter = (PyBcachefs_iterator*)PyObject_CallObject((PyObject*)&PyBcachefs_iteratorType, NULL);
+    if(!iter)
+        return NULL;/* Error type already set */
+    
+    if (!Bcachefs_iter(&self->_fs, &iter->_iter, btree_id)){
+        Py_DECREF(iter);
+        return PyErr_Format(PyExc_RuntimeError, "Error initializing Bcachefs iterator");
     }
-    if (iter == NULL || nargs != 1 || !Bcachefs_iter(&iter->_pyfs->_fs, &iter->_iter, (enum btree_id)(int)PyLong_AsLong(args[0])))
-    {
-        PyErr_SetString(PyExc_RuntimeError, "Error initializing Bcachefs iterator");
-        Py_XDECREF(iter);
-        return NULL;
-    }
-    Py_INCREF(iter);
+    
+    /* iter.fs = self */
+    Py_INCREF(self);
+    Py_CLEAR(iter->_pyfs);
+    iter->_pyfs = self;
+    
     return (PyObject*)iter;
 }
 
@@ -163,7 +170,7 @@ static PyTypeObject PyBcachefsType = {
 static void PyBcachefs_iterator_dealloc(PyBcachefs_iterator* self)
 {
     Bcachefs_iter_fini(&self->_pyfs->_fs, &self->_iter);
-    Py_XDECREF((PyObject*)self->_pyfs);
+    Py_CLEAR(self->_pyfs);
     Py_TYPE(self)->tp_free(self);
 }
 
@@ -187,6 +194,7 @@ static PyObject *PyBcachefs_iterator_next(PyBcachefs_iterator *self)
     const Bcachefs *fs = &self->_pyfs->_fs;
     Bcachefs_iterator *iter = &self->_iter;
     const struct bch_val *bch_val = Bcachefs_iter_next(fs, iter);
+
     if (bch_val && iter->type == BTREE_ID_extents)
     {
         Bcachefs_extent extent = Bcachefs_iter_make_extent(fs, iter);
@@ -202,12 +210,8 @@ static PyObject *PyBcachefs_iterator_next(PyBcachefs_iterator *self)
         Bcachefs_inode inode = Bcachefs_iter_make_inode(fs, iter);
         return Py_BuildValue("KK", inode.inode, inode.size);
     }
-    else if (bch_val && iter->type == BTREE_ID_dirents)
-    {
-        Bcachefs_dirent dirent = Bcachefs_iter_make_dirent(fs, iter);
-        return Py_BuildValue("KKIU", dirent.parent_inode, dirent.inode, (uint32_t)dirent.type, dirent.name);
-    }
 
+    Py_INCREF(Py_None);
     return Py_None;
 }
 
@@ -275,13 +279,10 @@ static PyModuleDef c_bcachefs_module_def = {
 
 PyMODINIT_FUNC PyInit_c_bcachefs(void)
 {
-    PyObject* module = NULL;
-
+    PyObject* module;
     module = PyModule_Create(&c_bcachefs_module_def);
     if (!module)
-    {
         return NULL;
-    }
 
     #define ADDTYPE(T)                                              \
         do{                                                         \
