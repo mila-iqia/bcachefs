@@ -743,6 +743,7 @@ uint64_t benz_bch_fread_btree_node(struct btree_node *btree_node, const struct b
 typedef struct {
     FILE *fp;
     long size;
+    long sb_size;
     struct bch_sb *sb;
 } Bcachefs;
 

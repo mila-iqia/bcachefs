@@ -388,35 +388,14 @@ uint64_t benz_bch_inline_data_offset(const struct btree_node* start, const struc
     return (uint64_t)((const uint8_t*)bch_val - (const uint8_t*)start) + start_offset;
 }
 
-// Get the superblock size, if sb is null return the minimal size it can be so
-// we can extract the full size to allocate for. Once the superblock was
-// allocated once we can extract is real size.
-uint64_t benz_bch_get_sb_size(const struct bch_sb *sb)
-{
-    uint64_t size = 0;
-    if (sb == NULL)
-    {
-        size = sizeof(struct bch_sb);
-    }
-    else if (memcmp(&sb->magic, &BCACHE_MAGIC, sizeof(BCACHE_MAGIC)) == 0)
-    {
-        size = sizeof(struct bch_sb) + sb->u64s * BCH_U64S_SIZE;
-    }
-    return size;
+// Get the superblock size.
+uint64_t benz_bch_get_sb_size(const struct bch_sb *sb){
+    return offsetof(struct bch_sb, _data) + sb->u64s*BCH_U64S_SIZE;
 }
 
 struct bch_sb *benz_bch_realloc_sb(struct bch_sb *sb, uint64_t size)
 {
-    if (size == 0)
-    {
-        size = benz_bch_get_sb_size(sb);
-    }
-    struct bch_sb *ret = realloc(sb, size);
-    if (ret == NULL && sb)
-    {
-        free(sb);
-    }
-    return ret;
+    return realloc(sb, size);
 }
 
 inline struct btree_node *benz_bch_malloc_btree_node(const struct bch_sb *sb)
@@ -426,12 +405,8 @@ inline struct btree_node *benz_bch_malloc_btree_node(const struct bch_sb *sb)
 
 uint64_t benz_bch_fread_sb(struct bch_sb *sb, uint64_t size, FILE *fp)
 {
-    if (size == 0)
-    {
-        size = benz_bch_get_sb_size(NULL);
-    }
-    fseek(fp, BCH_SB_SECTOR * BCH_SECTOR_SIZE, SEEK_SET);
-    return fread(sb, size, 1, fp);
+    return fseek(fp, BCH_SB_SECTOR * BCH_SECTOR_SIZE, SEEK_SET) == 0 &&
+           fread(sb, size, 1, fp) == 1;
 }
 
 uint64_t benz_bch_fread_btree_node(struct btree_node *btree_node, const struct bch_sb *sb, const struct bch_btree_ptr_v2 *btree_ptr, FILE *fp)
@@ -439,11 +414,49 @@ uint64_t benz_bch_fread_btree_node(struct btree_node *btree_node, const struct b
     uint64_t offset = benz_bch_get_extent_offset(btree_ptr->start);
     fseek(fp, (long)offset, SEEK_SET);
     memset(btree_node, 0, benz_bch_get_btree_node_size(sb));
-    return fread(btree_node, btree_ptr->sectors_written * BCH_SECTOR_SIZE, 1, fp);
+    return fread(btree_node, btree_ptr->sectors_written * BCH_SECTOR_SIZE, 1, fp) == 1;
 }
 
 // Filesystem and iterator abstraction layer
 // -----------------------------------------
+int Bcachefs_early_probe_size(Bcachefs *this)
+{
+    struct uuid magic;
+    uint32_t    u64s;
+    const long  sb_offset    = BCH_SB_SECTOR*BCH_SECTOR_SIZE;
+    const long  magic_offset = offsetof(struct bch_sb, magic);
+    const long  u64s_offset  = offsetof(struct bch_sb, u64s);
+    
+    
+    /* Seek to bch_sb->magic, read and verify */
+    if(fseek(this->fp, sb_offset+magic_offset, SEEK_SET) != 0)
+        return 1;
+    if(fread(&magic, sizeof(magic), 1, this->fp) != 1)
+        return 1;
+    if(memcmp(&magic, &BCACHE_MAGIC, sizeof(magic)) != 0)
+        return 1;
+    
+    
+    /* Seek to bch_sb->u64s and read */
+    if(fseek(this->fp, sb_offset+u64s_offset, SEEK_SET) != 0)
+        return 1;
+    if(fread(&u64s, sizeof(u64s), 1, this->fp) != 1)
+        return 1;
+    this->sb_size = offsetof(struct bch_sb, _data) + BCH_U64S_SIZE*benz_getle32(&u64s,0);
+    
+    
+    /* Seek to end to measure length */
+    if(fseek(this->fp, 0, SEEK_END) != 0)
+        return 1;
+    this->size = ftell(this->fp);
+    if(fseek(this->fp, 0, SEEK_SET) != 0)
+        return 1;
+    
+    
+    /* Return */
+    return 0;
+}
+
 int Bcachefs_fini(Bcachefs *this)
 {
     return Bcachefs_close(this);
@@ -452,42 +465,40 @@ int Bcachefs_fini(Bcachefs *this)
 int Bcachefs_open(Bcachefs *this, const char *path)
 {
     *this = (Bcachefs){0};
-
-    int ret = 0;
     this->fp = fopen(path, "rb");
-    if (this->fp)
-    {
-        fseek(this->fp, 0L, SEEK_END);
-        this->size = ftell(this->fp);
-        fseek(this->fp, 0L, SEEK_SET);
-        this->sb = benz_bch_realloc_sb(NULL, 0);
-    }
-    if (this->sb && benz_bch_fread_sb(this->sb, 0, this->fp))
-    {
-        this->sb = benz_bch_realloc_sb(this->sb, 0);
-        ret = this->sb && benz_bch_fread_sb(this->sb, benz_bch_get_sb_size(this->sb),
-                                            this->fp);
-    }
-    if (!ret)
-    {
-        Bcachefs_fini(this);
-    }
-    return ret;
+    if(!this->fp)
+        goto error;
+
+    if(Bcachefs_early_probe_size(this) != 0)
+        goto error;
+
+    this->sb = benz_bch_realloc_sb(NULL, this->sb_size);
+    if(!this->sb)
+        goto error;
+
+    if(!benz_bch_fread_sb(this->sb, this->sb_size, this->fp))
+        goto error;
+    
+    
+    return 1;
+    
+    
+    error:
+    Bcachefs_fini(this);
+    return 0;
 }
 
 int Bcachefs_close(Bcachefs *this)
 {
-    if (this->fp && !fclose(this->fp))
-    {
-        this->fp = NULL;
-        this->size = 0;
-    }
-    if (this->sb)
-    {
+    if(this->fp)
+        fclose(this->fp);
+    
+    if(this->sb)
         free(this->sb);
-        this->sb = NULL;
-    }
-    return this->fp == NULL && this->sb == NULL;
+    
+    this->fp = NULL;
+    this->sb = NULL;
+    return 1;
 }
 
 int Bcachefs_iter(const Bcachefs *this, Bcachefs_iterator *iter, enum btree_id type)
@@ -497,6 +508,9 @@ int Bcachefs_iter(const Bcachefs *this, Bcachefs_iterator *iter, enum btree_id t
     iter->type = type;
     iter->btree_node = benz_bch_malloc_btree_node(this->sb);
     iter->jset_entry = Bcachefs_iter_next_jset_entry(this, iter);
+    if(!iter->jset_entry)
+        return 0;/* No B-tree with that BTREE_ID. */
+    
     iter->btree_ptr = Bcachefs_iter_next_btree_ptr(this, iter);
     if (iter->btree_ptr && !benz_bch_fread_btree_node(iter->btree_node,
                                                       this->sb,
