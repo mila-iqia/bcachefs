@@ -20,7 +20,7 @@ static PyTypeObject PyBcachefsType;
 typedef struct {
     PyObject_HEAD
     PyBcachefs *_pyfs;
-    Bcachefs_iterator _iter;
+    Bcachefs_iterator *_iter;
 } PyBcachefs_iterator;
 static PyTypeObject PyBcachefs_iteratorType;
 

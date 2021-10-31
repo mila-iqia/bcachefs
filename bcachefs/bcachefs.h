@@ -721,6 +721,7 @@ const struct bset *benz_bch_next_bset(const struct btree_node *p, const void *p_
 const struct bkey *benz_bch_next_bkey(const struct bset *p, const struct bkey *c, enum bch_bkey_type type);
 
 struct bkey_local benz_bch_parse_bkey(const struct bkey *bkey, const struct bkey_format *format);
+uint64_t benz_bch_parse_bkey_field(const struct bkey *bkey, const struct bkey_format *format, enum bch_bkey_fields field);
 
 uint64_t benz_bch_get_sb_size(const struct bch_sb *sb);
 uint64_t benz_bch_get_block_size(const struct bch_sb *sb);
@@ -740,26 +741,6 @@ struct btree_node *benz_bch_malloc_btree_node(const struct bch_sb *sb);
 uint64_t benz_bch_fread_sb(struct bch_sb *sb, uint64_t size, FILE *fp);
 uint64_t benz_bch_fread_btree_node(struct btree_node *btree_node, const struct bch_sb *sb, const struct bch_btree_ptr_v2 *btree_ptr, FILE *fp);
 
-typedef struct {
-    FILE *fp;
-    long size;
-    struct bch_sb *sb;
-} Bcachefs;
-
-typedef struct Bcachefs_iterator {
-    enum btree_id type;                         //! which btree are we iterating over
-    const struct jset_entry *jset_entry;        //! journal entry specifying the location of the btree root
-    const struct bch_btree_ptr_v2 *btree_ptr;   //! current btree node location
-    const struct bset *bset;                    //! current bset inside the btree
-    const void *bkey;                           //! current bkey inside the bset
-    const struct bch_val *bch_val;              //! current value stored inside along side the key
-    struct btree_node *btree_node;              //! current btree node
-    struct Bcachefs_iterator *next_it;          //! pointer to the children btree node if iterating over nested Btrees
-    const struct bset **_bsets;                 //! bsets list inside the btree
-    const struct bset **_bsets_end;             //! bsets list end pointer
-    const struct bset **_bset;                  //! current bset inside the list
-} Bcachefs_iterator;
-
 //! Decoded value from the extend btree
 typedef struct {
     uint64_t inode;
@@ -772,6 +753,7 @@ typedef struct {
 typedef struct {
     uint64_t inode;
     uint64_t size;
+    uint64_t hash_seed;
 } Bcachefs_inode;
 
 //! Decoded value from the dirent btree
@@ -783,7 +765,39 @@ typedef struct {
     const uint8_t name_len;
 } Bcachefs_dirent;
 
-int Bcachefs_fini(Bcachefs *this);
+typedef struct Bcachefs_iterator {
+    enum btree_id type;                         //! which btree are we iterating over
+    const struct jset_entry *jset_entry;        //! journal entry specifying the location of the btree root
+    const struct bch_btree_ptr_v2 *btree_ptr;   //! current btree node location
+    const struct bset *bset;                    //! current bset inside the btree
+    const void *bkey;                           //! current bkey inside the bset
+    const struct bch_val *bch_val;              //! current value stored inside along side the key
+    struct btree_node *btree_node;              //! current btree node
+    struct Bcachefs_iterator *next_it;          //! pointer to the children btree node if iterating over nested Btrees
+    struct bset **_bsets;                       //! bsets pointers list inside the btree
+    const struct bset **_bset;                  //! current bset in _bsets
+    const struct bset **_bsets_end;             //! bsets list end pointer
+} Bcachefs_iterator;
+#define BCACHEFS_ITERATOR_CLEAN (Bcachefs_iterator){.type = BTREE_ID_NR}
+static const Bcachefs_iterator Bcachefs_iterator_clean = BCACHEFS_ITERATOR_CLEAN;
+
+typedef struct {
+    FILE *fp;
+    long size;
+    struct bch_sb *sb;
+    Bcachefs_iterator _extents_iter_begin;
+    Bcachefs_iterator _inodes_iter_begin;
+    Bcachefs_iterator _dirents_iter_begin;
+    Bcachefs_inode _root;
+} Bcachefs;
+#define BCACHEFS_CLEAN (Bcachefs){ \
+    ._extents_iter_begin = BCACHEFS_ITERATOR_CLEAN, \
+    ._inodes_iter_begin = BCACHEFS_ITERATOR_CLEAN, \
+    ._dirents_iter_begin = BCACHEFS_ITERATOR_CLEAN, \
+    ._root = (Bcachefs_inode){0} \
+}
+static const Bcachefs Bcachefs_clean = BCACHEFS_CLEAN;
+
 
 /*! @brief  Open a Bcachefs disk image for reading
  * 
@@ -811,7 +825,7 @@ int Bcachefs_close(Bcachefs *this);
  * 
  *  @return 1 on success and 0 on failure
  */
-int Bcachefs_iter(const Bcachefs *this, Bcachefs_iterator *iter, enum btree_id type);
+Bcachefs_iterator* Bcachefs_iter(const Bcachefs *this, enum btree_id type);
 
 
 /*! @brief fetch next value from the iterator
@@ -864,7 +878,10 @@ Bcachefs_inode Bcachefs_iter_make_inode(const Bcachefs *this, Bcachefs_iterator 
 Bcachefs_dirent Bcachefs_iter_make_dirent(const Bcachefs *this, Bcachefs_iterator *iter);
 
 
+Bcachefs_inode Bcachefs_find_inode(const Bcachefs *this, uint64_t inode);
 int Bcachefs_next_iter(const Bcachefs *this, Bcachefs_iterator *iter, const struct bch_btree_ptr_v2 *btree_ptr);
+int Bcachefs_iter_reinit(const Bcachefs *this, Bcachefs_iterator *iter, enum btree_id type);
+int Bcachefs_iter_minimal_copy(const Bcachefs *this, Bcachefs_iterator *iter, const Bcachefs_iterator *other);
 const struct jset_entry *Bcachefs_iter_next_jset_entry(const Bcachefs *this, Bcachefs_iterator *iter);
 const struct bch_btree_ptr_v2 *Bcachefs_iter_next_btree_ptr(const Bcachefs *this, Bcachefs_iterator *iter);
 const struct bset *Bcachefs_iter_next_bset(const Bcachefs *this, Bcachefs_iterator *iter);

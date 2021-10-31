@@ -14,7 +14,7 @@
 
 static void PyBcachefs_dealloc(PyBcachefs* self)
 {
-    Bcachefs_fini(&self->_fs);
+    Bcachefs_close(&self->_fs);
     Py_TYPE(self)->tp_free(self);
 }
 
@@ -36,6 +36,7 @@ static PyObject* PyBcachefs_new(PyTypeObject* type, PyObject* args, PyObject* kw
 static PyObject *PyBcachefs_open(PyBcachefs *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
     (void)kwnames;
+    self->_fs = Bcachefs_clean;
     if (nargs != 1 || !Bcachefs_open(&self->_fs, (void*)PyUnicode_1BYTE_DATA(args[0])))
     {
         PyErr_SetString(PyExc_RuntimeError, "Error opening Bcachefs image file");
@@ -73,7 +74,14 @@ static PyObject *PyBcachefs_iter(PyBcachefs *self, PyObject *const *args, Py_ssi
         Py_INCREF(self);
         iter->_pyfs = self;
     }
-    if (iter == NULL || nargs != 1 || !Bcachefs_iter(&iter->_pyfs->_fs, &iter->_iter, (enum btree_id)(int)PyLong_AsLong(args[0])))
+    if (iter == NULL || nargs != 1)
+    {
+        PyErr_SetString(PyExc_RuntimeError, "Error initializing Bcachefs iterator");
+        Py_XDECREF(iter);
+        return NULL;
+    }
+    iter->_iter = Bcachefs_iter(&iter->_pyfs->_fs, (enum btree_id)(int)PyLong_AsLong(args[0]));
+    if (iter->_iter == NULL)
     {
         PyErr_SetString(PyExc_RuntimeError, "Error initializing Bcachefs iterator");
         Py_XDECREF(iter);
@@ -162,7 +170,12 @@ static PyTypeObject PyBcachefsType = {
 
 static void PyBcachefs_iterator_dealloc(PyBcachefs_iterator* self)
 {
-    Bcachefs_iter_fini(&self->_pyfs->_fs, &self->_iter);
+    if (self->_iter)
+    {
+        Bcachefs_iter_fini(&self->_pyfs->_fs, self->_iter);
+        free(self->_iter);
+        self->_iter = NULL;
+    }
     Py_XDECREF((PyObject*)self->_pyfs);
     Py_TYPE(self)->tp_free(self);
 }
@@ -185,7 +198,7 @@ static PyObject* PyBcachefs_iterator_new(PyTypeObject* type, PyObject* args, PyO
 static PyObject *PyBcachefs_iterator_next(PyBcachefs_iterator *self)
 {
     const Bcachefs *fs = &self->_pyfs->_fs;
-    Bcachefs_iterator *iter = &self->_iter;
+    Bcachefs_iterator *iter = self->_iter;
     const struct bch_val *bch_val = Bcachefs_iter_next(fs, iter);
     if (bch_val && iter->type == BTREE_ID_extents)
     {
