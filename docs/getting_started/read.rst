@@ -5,7 +5,7 @@ Read images
 
    from bcachefs import Bcachefs
 
-   with Bcachefs('dataset_img', 'r') as image:
+   with Bcachefs('disk.img', 'r') as image:
        file_names = image.namelist()
 
        for filename in file_names:
@@ -28,8 +28,6 @@ Multiprocessing
                    return len(f.read()) 
            except FileNotFoundError:
                return 0
-
-   image = filepath(image) 
 
    with Bcachefs(image) as fs:
        files = fs.namelist()

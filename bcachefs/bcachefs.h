@@ -781,18 +781,90 @@ typedef struct {
 } Bcachefs_dirent;
 
 int Bcachefs_fini(Bcachefs *this);
+
+/*! @brief  Open a Bcachefs disk image for reading
+ * 
+ *  @param [out] this the bcachefs struct to use for the initialization
+ *  @param [in] path the path to the image
+ * 
+ *  @return 1 on success and 0 on failure
+ */
 int Bcachefs_open(Bcachefs *this, const char *path);
+
+
+/*! @brief close the Bcachefs disk image
+ *
+ *  @param [in] this the disk image to close
+ *  @return 1 on success and 0 on failure
+ */ 
 int Bcachefs_close(Bcachefs *this);
+
+
+/*! @brief prepare a bcachefs iterator to go through a bcachefs btree
+ *
+ *  @param [in] this the disk image we want to iterate through
+ *  @param [out] iter the iterator struct to initialize
+ *  @param [in] type the btree type we want to iterate over
+ * 
+ *  @return 1 on success and 0 on failure
+ */
 int Bcachefs_iter(const Bcachefs *this, Bcachefs_iterator *iter, enum btree_id type);
-int Bcachefs_next_iter(const Bcachefs *this, Bcachefs_iterator *iter, const struct bch_btree_ptr_v2 *btree_ptr);
-int Bcachefs_iter_fini(const Bcachefs *this, Bcachefs_iterator *iter);
+
+
+/*! @brief fetch next value from the iterator
+ *
+ *  @param [in] this the disk image we are iterating through
+ *  @param [in] iter the iterator struct
+ * 
+ *  @return the next value or `NULL` if we reached the end
+ */
 const struct bch_val *Bcachefs_iter_next(const Bcachefs *this, Bcachefs_iterator *iter);
+
+
+/*! @brief free all the resources allocated by the iterator
+ *
+ *  @param [in] this the disk image we are iterating through
+ *  @param [in] iter the iterator struct
+ * 
+ *  @return 1 on success and 0 on failure
+ */
+int Bcachefs_iter_fini(const Bcachefs *this, Bcachefs_iterator *iter);
+
+
+/*! @brief extract extent information from a bch_val
+ * 
+ *  @param [in] this the disk image we are reading from
+ *  @param [in] iter the iterator pointing to the value we want to extract
+ * 
+ *  @return the extracted value
+ */
+Bcachefs_extent Bcachefs_iter_make_extent(const Bcachefs *this, Bcachefs_iterator *iter);
+
+
+/*! @brief extract inode information from a bch_val
+ * 
+ *  @param [in] this the disk image we are reading from
+ *  @param [in] iter the iterator pointing to the value we want to extract
+ * 
+ *  @return the extracted value
+ */
+Bcachefs_inode Bcachefs_iter_make_inode(const Bcachefs *this, Bcachefs_iterator *iter);
+
+
+/*! @brief extract dirent information from a bch_val
+ * 
+ *  @param [in] this the disk image we are reading from
+ *  @param [in] iter the iterator pointing to the value we want to extract
+ * 
+ *  @return the extracted value
+ */
+Bcachefs_dirent Bcachefs_iter_make_dirent(const Bcachefs *this, Bcachefs_iterator *iter);
+
+
+int Bcachefs_next_iter(const Bcachefs *this, Bcachefs_iterator *iter, const struct bch_btree_ptr_v2 *btree_ptr);
 const struct jset_entry *Bcachefs_iter_next_jset_entry(const Bcachefs *this, Bcachefs_iterator *iter);
 const struct bch_btree_ptr_v2 *Bcachefs_iter_next_btree_ptr(const Bcachefs *this, Bcachefs_iterator *iter);
 const struct bset *Bcachefs_iter_next_bset(const Bcachefs *this, Bcachefs_iterator *iter);
-Bcachefs_extent Bcachefs_iter_make_extent(const Bcachefs *this, Bcachefs_iterator *iter);
-Bcachefs_inode Bcachefs_iter_make_inode(const Bcachefs *this, Bcachefs_iterator *iter);
-Bcachefs_dirent Bcachefs_iter_make_dirent(const Bcachefs *this, Bcachefs_iterator *iter);
 
 uint64_t benz_get_flag_bits(const uint64_t bitfield, uint8_t first_bit, uint8_t last_bit);
 

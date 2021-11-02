@@ -1,4 +1,4 @@
-Creating a new image
+Creating a new disk image
 ~~~~~~~~~~~~~~~~~~~~
 
 Bcachefs focus exclusively on reading Bcachefs archive.
@@ -17,11 +17,11 @@ The best way to create a new archive is to use the standard bcachefs tools.
    # more details at https://github.com/Delaunay/bcachefs-pytools
    pip install git+https://github.com/Delaunay/bcachefs-pytools
 
-   # Get the size of the dataset we want to make an image of
-   SIZE=$(du -shc . | tail -n 1 | cut -f 1)
+   # Get the size of the disk image we want to create
+   SIZE=$(du -shc dataset | tail -n 1 | cut -f 1)
 
    # Create a file with the size of your dataset
-   truncate -s $SIZE dataset_image
+   truncate -s $SIZE disk.img
 
    # Format the file using bcachefs file format
    bcachefs format\
@@ -31,22 +31,22 @@ The best way to create a new archive is to use the standard bcachefs tools.
         --compression=none\
         --str_hash=siphash\
         --label=LabelDEADBEEF\
-        dataset_image
+        disk.img
 
    # Create a mount point we can write to
-   mkdir dataset_mount
+   mkdir disk_mount
 
    # Mount our image for writing
-   bcachefs fusemount -s dataset_image dataset_mount
+   bcachefs fusemount -s disk.img disk_mount
 
-   # copy our dataset to the image
+   # copy our files to the disk image
    cp -r dataset dataset_mount
 
    # check the checksum to make sure sure the copy worked
-   original=$(find $NAME -type f -exec md5sum {} \; | cut -d ' ' -f 1 | sort | md5sum)
+   original=$(find dataset -type f -exec md5sum {} \; | cut -d ' ' -f 1 | sort | md5sum)
    backup=$(find tmp/ -type f -exec md5sum {} \; | cut -d ' ' -f 1 | sort | md5sum)
+
+   echo "$original == $backup"
 
    # Dismount the image
    fusermount3 -u dataset_mount
-
-

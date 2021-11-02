@@ -1,0 +1,11 @@
+default_stages: [commit, push]
+repos:
+  - repo: https://github.com/psf/black
+    rev: 21.9b0
+    hooks:
+    - id: black
+      args: [
+        --line-length=80
+      ]
+      exclude: ^(venv/|docs/)
+      types: ['python']
