@@ -31,10 +31,6 @@ jobs:
         run: |
           python setup.py -coverage develop
 
-      - name: doctest
-        run: |
-          pytest --doctest-modules bcachefs
-
       - name: Tests
         run: | 
           coverage run --parallel-mode -m pytest tests/
