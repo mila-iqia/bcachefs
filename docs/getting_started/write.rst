@@ -44,6 +44,3 @@ The best way to create a new archive is to use the standard bcachefs tools.
 
    # Dismount the image
    fusermount3 -u dataset_mount
-
-   # [Optional] Generate a hash
-   sha256sum dataset_image | cut -f 1
