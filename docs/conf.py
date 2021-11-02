@@ -266,7 +266,12 @@ texinfo_documents = [
 
 # -- Autodoc configuration -----------------------------------------------
 
-autodoc_mock_imports = ["_version", "utils._appdirs", "bcachefs.c_bcachefs", "numpy"]
+autodoc_mock_imports = [
+    "_version",
+    "utils._appdirs",
+    "bcachefs.c_bcachefs",
+    "numpy",
+]
 
 doctest_global_setup = """
 import os

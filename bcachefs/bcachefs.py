@@ -14,7 +14,6 @@ from bcachefs.c_bcachefs import (
 )
 
 
-
 EXTENT_TYPE = 0
 INODE_TYPE = 1
 DIRENT_TYPE = 2
