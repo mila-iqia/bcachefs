@@ -1,0 +1,19 @@
+PROJECT_NAME           = "@PROJECT_NAME@"
+PROJECT_NUMBER         = "@rev_branch@"
+OUTPUT_DIRECTORY       = "@DOXYGEN_OUTPUT_DIR@"
+ALIASES                = "rst=\verbatim embed:rst:leading-asterisk"
+ALIASES               += "endrst=\endverbatim"
+OPTIMIZE_OUTPUT_FOR_C  = YES
+HIDE_UNDOC_MEMBERS     = YES
+HIDE_UNDOC_CLASSES     = YES
+HIDE_IN_BODY_DOCS      = YES
+WARN_FORMAT            = "$file:$line: $text"
+INPUT                  = "@CMAKE_SOURCE_DIR@/bcachefs"
+INPUT_ENCODING         = UTF-8
+FILE_PATTERNS          = *.h
+RECURSIVE              = YES
+EXCLUDE_PATTERNS       = *.py
+EXAMPLE_PATH           = "@CMAKE_SOURCE_DIR@/examples"
+IMAGE_PATH             = "@CMAKE_SOURCE_DIR@/Docs/_static"
+GENERATE_HTML          = NO
+GENERATE_XML           = YES

@@ -211,4 +211,7 @@ dmypy.json
 /tmp/
 /venv/
 *.out
+docs/Doxyfile
+docs/html/
+docs/latex/
 .vscode/

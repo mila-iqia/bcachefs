@@ -27,6 +27,7 @@ setup(
     name="bcachefs",
     version="0.1.10",
     author="Satya Ortiz-Gagné",
+    description="Fast Disk Image for HPC",
     url="",
     packages=find_packages(),
     ext_modules=[bcachefs_module],
