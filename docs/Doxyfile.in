@@ -1,9 +1,8 @@
-
 PROJECT_NAME           = "@PROJECT_NAME@"
 PROJECT_NUMBER         = "@rev_branch@"
 OUTPUT_DIRECTORY       = "@DOXYGEN_OUTPUT_DIR@"
-ALIASES  = "rst=\verbatim embed:rst:leading-asterisk"
-ALIASES += "endrst=\endverbatim"
+ALIASES                = "rst=\verbatim embed:rst:leading-asterisk"
+ALIASES               += "endrst=\endverbatim"
 OPTIMIZE_OUTPUT_FOR_C  = YES
 HIDE_UNDOC_MEMBERS     = YES
 HIDE_UNDOC_CLASSES     = YES
