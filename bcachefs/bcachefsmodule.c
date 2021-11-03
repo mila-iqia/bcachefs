@@ -92,6 +92,28 @@ static PyObject *PyBcachefs_iter(PyBcachefs *self, PyObject *const *args, Py_ssi
 }
 
 /**
+ * @brief
+ */
+
+static PyObject *PyBcachefs_find_extent(PyBcachefs *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    (void)kwnames;
+    if (nargs != 2)
+    {
+        PyErr_SetString(PyExc_RuntimeError, "Function takes 2 arguments");
+        return NULL;
+    }
+    Bcachefs_extent extent = Bcachefs_find_extent(&self->_fs, (uint64_t)PyLong_AsLong(args[0]), (uint64_t)PyLong_AsLong(args[1]));
+    if (extent.inode)
+    {
+        return Py_BuildValue("KKKK", extent.inode, extent.file_offset, extent.offset, extent.size);
+    }
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+/**
  * @brief Getter for length.
  */
 
@@ -109,6 +131,8 @@ static PyMethodDef PyBcachefs_methods[] = {
     {"open", (PyCFunction)(_PyCFunctionFastWithKeywords)PyBcachefs_open,
      METH_FASTCALL | METH_KEYWORDS, "Open bcachefs file to read"},
     {"close", (PyCFunction)PyBcachefs_close, METH_NOARGS, "Close bcachefs file"},
+    {"find_extent", (PyCFunction)(_PyCFunctionFastWithKeywords)PyBcachefs_find_extent,
+     METH_FASTCALL | METH_KEYWORDS, "Find extent"},
     {"iter", (PyCFunction)(_PyCFunctionFastWithKeywords)PyBcachefs_iter,
      METH_FASTCALL | METH_KEYWORDS, "Iterate over entries of specified type"},
     {NULL, NULL, 0, NULL}  /* Sentinel */

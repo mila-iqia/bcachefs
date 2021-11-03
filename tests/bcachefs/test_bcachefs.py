@@ -132,7 +132,7 @@ def test_file_size(image):
         file_size = fs._inode_map.get(inode)
         assert file_size, "file inode should be present"
 
-        extents = fs._extents_map[inode]
+        extents = fs.find_extents(inode)
         size_check = 0
         for extent in extents:
             size_check += extent.size

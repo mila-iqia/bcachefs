@@ -339,12 +339,10 @@ class Bcachefs:
         assert mode in ("r", "rb"), "Only reading is supported"
         self._path = path
         self._filesystem = None
-        self._size = 0
         self._file: [io.RawIOBase] = None
         self._closed = True
         self._pwd = "/"  # Used in Cursor
         self._dirent = ROOT_DIRENT  # Used in Cursor
-        self._extents_map = {}
         self._inodes_ls = {ROOT_DIRENT.inode: []}
         self._inodes_tree = {}
         self._inode_map = {}
@@ -376,9 +374,9 @@ class Bcachefs:
             if dirent is not None:
                 inode = dirent.inode
 
-        extents = self._extents_map.get(inode)
+        extents = list(self.find_extents(inode))
 
-        if extents is None:
+        if not extents:
             raise FileNotFoundError(f"{name} was not found")
 
         file_size = self._inode_map[inode]
@@ -436,8 +434,7 @@ class Bcachefs:
 
     @property
     def size(self) -> int:
-        """Size of the current image"""
-        return self._size
+        return self._filesystem.size if self._filesystem else 0
 
     @property
     def closed(self) -> bool:
@@ -446,31 +443,34 @@ class Bcachefs:
 
     def cd(self, path: str = "/"):
         """Creates a cursor to a directory"""
-        cursor = Cursor(
-            self.path, self._extents_map, self._inodes_ls, self._inodes_tree
-        )
+        cursor = Cursor(self.path, self._inodes_ls, self._inodes_tree)
         return cursor.cd(path)
 
     def _open(self):
         if self._closed:
             self._filesystem = _Bcachefs()
             self._filesystem.open(self._path)
-            self._size = self._filesystem.size
             self._file = open(self._path, "rb")
             self._closed = False
             self._parse()
 
     def close(self):
         if not self._closed:
-            # if the object was pickled we did not need the filesystem
-            # to be set
-            if self._filesystem:
-                self._filesystem.close()
-                self._filesystem = None
-            self._size = 0
+            self._filesystem.close()
+            self._filesystem = None
             self._file.close()
             self._file = None
             self._closed = True
+
+    def find_extent(self, inode: int, file_offset: int) -> Extent:
+        extent = self._filesystem.find_extent(inode, file_offset)
+        return Extent(*extent) if extent else None
+
+    def find_extents(self, inode: int) -> Extent:
+        extent = self.find_extent(inode, 0)
+        while extent:
+            yield extent
+            extent = self.find_extent(inode, extent.file_offset + extent.size)
 
     def find_dirent(self, path: str = None) -> DirEnt:
         """Resolve a path to its directory entry, returns none if it was not found"""
@@ -517,7 +517,7 @@ class Bcachefs:
 
     def _parse(self):
         """Generate a cache of bcachefs btrees"""
-        if self._extents_map:
+        if len(self._inodes_ls) > 1:
             return
 
         for dirent in BcachefsIterDirEnt(self._filesystem):
@@ -528,15 +528,8 @@ class Bcachefs:
             self._inodes_ls[dirent.parent_inode].append(dirent)
             self._inodes_tree[(dirent.parent_inode, dirent.name)] = dirent
 
-        for extent in BcachefsIterExtent(self._filesystem):
-            self._extents_map.setdefault(extent.inode, [])
-            self._extents_map[extent.inode].append(extent)
-
         for inode in BcachefsIterInode(self._filesystem):
             self._inode_map.setdefault(inode.inode, inode.size)
-
-        for inode, extents in self._extents_map.items():
-            self._extents_map[inode] = self._unique_extent_list(extents)
 
         for parent_inode, ls in self._inodes_ls.items():
             self._inodes_ls[parent_inode] = self._unique_dirent_list(ls)
@@ -549,57 +542,29 @@ class Bcachefs:
             yield from self._walk(os.path.join(dirpath, d.name), d)
 
     @staticmethod
-    def _unique_extent_list(inode_extents):
-        # It's possible to have multiple duplicated extents for a single inode
-        # and this implementation assumes that the last ones should be the
-        # correct ones.
-        unique_extent_list = []
-        for ent in sorted(inode_extents, key=lambda _: _.file_offset):
-            if ent not in unique_extent_list[-1:]:
-                unique_extent_list.append(ent)
-        return unique_extent_list
-
-    @staticmethod
     def _unique_dirent_list(dirent_ls):
         # It's possible to have multiple inodes for a single file and this
         # implementation assumes that the first inode should be the correct one.
         return list({ent.name: ent for ent in reversed(dirent_ls)}.values())
 
     def __getstate__(self):
-        return dict(
-            path=self._path,
-            size=self._size,
-            closed=self._closed,
-            pwd=self._pwd,
-            dirent=self._dirent,
-            extents_map=self._extents_map,
-            inode_ls=self._inodes_ls,
-            inode_tree=self._inodes_tree,
-            inode_map=self._inode_map,
-        )
+        state = self.__dict__.copy()
+        del state["_file"]
+        del state["_filesystem"]
+        return state
 
     def __setstate__(self, state):
-        self._path = state["path"]
-        self._size = state["size"]
-        self._closed = state["closed"]
-
+        self.__dict__ = {**self.__dict__, **state}
         if not self._closed:
+            self._filesystem = _Bcachefs()
+            self._filesystem.open(self._path)
             self._file = open(self._path, "rb")
-
-        self._filesystem = None
-        self._pwd = state["pwd"]
-        self._dirent = state["dirent"]
-        self._extents_map = state["extents_map"]
-        self._inodes_ls = state["inode_ls"]
-        self._inodes_tree = state["inode_tree"]
-        self._inode_map = state["inode_map"]
 
 
 class Cursor(Bcachefs):
     def __init__(
         self,
         path: [str, Bcachefs],
-        extents_map: dict,
         inodes_ls: dict,
         inodes_tree: dict,
     ):
@@ -608,7 +573,6 @@ class Cursor(Bcachefs):
         else:
             path: Bcachefs
             super(Cursor, self).__init__(path.path)
-        self._extents_map = extents_map
         self._inodes_ls = inodes_ls
         self._inodes_tree = inodes_tree
         self._is_owner = False
