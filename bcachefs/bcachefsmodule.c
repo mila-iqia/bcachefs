@@ -114,6 +114,28 @@ static PyObject *PyBcachefs_find_extent(PyBcachefs *self, PyObject *const *args,
 }
 
 /**
+ * @brief
+ */
+
+static PyObject *PyBcachefs_find_inode(PyBcachefs *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    (void)kwnames;
+    if (nargs != 1)
+    {
+        PyErr_SetString(PyExc_RuntimeError, "Function takes 1 argument");
+        return NULL;
+    }
+    Bcachefs_inode inode = Bcachefs_find_inode(&self->_fs, (uint64_t)PyLong_AsLong(args[0]));
+    if (inode.inode)
+    {
+        return Py_BuildValue("KKK", inode.inode, inode.size, inode.hash_seed);
+    }
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+/**
  * @brief Getter for length.
  */
 
@@ -133,6 +155,8 @@ static PyMethodDef PyBcachefs_methods[] = {
     {"close", (PyCFunction)PyBcachefs_close, METH_NOARGS, "Close bcachefs file"},
     {"find_extent", (PyCFunction)(_PyCFunctionFastWithKeywords)PyBcachefs_find_extent,
      METH_FASTCALL | METH_KEYWORDS, "Find extent"},
+    {"find_inode", (PyCFunction)(_PyCFunctionFastWithKeywords)PyBcachefs_find_inode,
+     METH_FASTCALL | METH_KEYWORDS, "Find inode"},
     {"iter", (PyCFunction)(_PyCFunctionFastWithKeywords)PyBcachefs_iter,
      METH_FASTCALL | METH_KEYWORDS, "Iterate over entries of specified type"},
     {NULL, NULL, 0, NULL}  /* Sentinel */
@@ -232,7 +256,7 @@ static PyObject *PyBcachefs_iterator_next(PyBcachefs_iterator *self)
     else if (bch_val && iter->type == BTREE_ID_inodes)
     {
         Bcachefs_inode inode = Bcachefs_iter_make_inode(fs, iter);
-        return Py_BuildValue("KK", inode.inode, inode.size);
+        return Py_BuildValue("KKK", inode.inode, inode.size, inode.hash_seed);
     }
     else if (bch_val && iter->type == BTREE_ID_dirents)
     {

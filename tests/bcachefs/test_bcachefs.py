@@ -129,8 +129,7 @@ def test_file_size(image):
     with Bcachefs(image) as fs:
         inode = fs.find_dirent("file1").inode
 
-        file_size = fs._inode_map.get(inode)
-        assert file_size, "file inode should be present"
+        file_size = fs.find_inode(inode).size
 
         extents = fs.find_extents(inode)
         size_check = 0

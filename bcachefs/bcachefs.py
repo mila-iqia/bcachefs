@@ -62,6 +62,7 @@ class Inode:
 
     inode: int = 0
     size: int = 0
+    hash_seed: int = 0
 
 
 @dataclass(eq=True, frozen=True)
@@ -345,7 +346,6 @@ class Bcachefs:
         self._dirent = ROOT_DIRENT  # Used in Cursor
         self._inodes_ls = {ROOT_DIRENT.inode: []}
         self._inodes_tree = {}
-        self._inode_map = {}
 
     def open(self, name: [str, int], mode: str = "rb", encoding: str = "utf-8"):
         """Open a file inside the image for reading
@@ -369,18 +369,19 @@ class Bcachefs:
         inode = name
         if isinstance(name, str):
             dirent = self.find_dirent(name)
+            inode = dirent.inode if dirent else None
 
-            inode = None
-            if dirent is not None:
-                inode = dirent.inode
+        inode = self.find_inode(inode)
 
-        extents = list(self.find_extents(inode))
+        extents = list(self.find_extents(inode.inode if inode else None))
 
         if not extents:
             raise FileNotFoundError(f"{name} was not found")
 
-        file_size = self._inode_map[inode]
-        base = _BcachefsFileBinary(name, extents, self._file, inode, file_size)
+        file_size = inode.size
+        base = _BcachefsFileBinary(
+            name, extents, self._file, inode.inode, file_size
+        )
         return base
 
     def namelist(self):
@@ -472,6 +473,10 @@ class Bcachefs:
             yield extent
             extent = self.find_extent(inode, extent.file_offset + extent.size)
 
+    def find_inode(self, inode: int) -> Inode:
+        inode = self._filesystem.find_inode(inode)
+        return Inode(*inode) if inode else None
+
     def find_dirent(self, path: str = None) -> DirEnt:
         """Resolve a path to its directory entry, returns none if it was not found"""
         if not path:
@@ -527,9 +532,6 @@ class Bcachefs:
         for dirent in BcachefsIterDirEnt(self._filesystem):
             self._inodes_ls[dirent.parent_inode].append(dirent)
             self._inodes_tree[(dirent.parent_inode, dirent.name)] = dirent
-
-        for inode in BcachefsIterInode(self._filesystem):
-            self._inode_map.setdefault(inode.inode, inode.size)
 
         for parent_inode, ls in self._inodes_ls.items():
             self._inodes_ls[parent_inode] = self._unique_dirent_list(ls)
