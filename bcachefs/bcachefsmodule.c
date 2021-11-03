@@ -136,6 +136,29 @@ static PyObject *PyBcachefs_find_inode(PyBcachefs *self, PyObject *const *args, 
 }
 
 /**
+ * @brief
+ */
+
+static PyObject *PyBcachefs_find_dirent(PyBcachefs *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    (void)kwnames;
+    if (nargs != 3)
+    {
+        PyErr_SetString(PyExc_RuntimeError, "Function takes 3 arguments");
+        return NULL;
+    }
+
+    Bcachefs_dirent dirent = Bcachefs_find_dirent(&self->_fs, (uint64_t)PyLong_AsLong(args[0]), (uint64_t)PyLong_AsLong(args[1]), (const void*)PyBytes_AsString(args[2]), PyBytes_Size(args[2]));
+    if (dirent.inode)
+    {
+        return Py_BuildValue("KKIU#", dirent.parent_inode, dirent.inode, (uint32_t)dirent.type, dirent.name, dirent.name_len);
+    }
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+/**
  * @brief Getter for length.
  */
 
@@ -157,6 +180,8 @@ static PyMethodDef PyBcachefs_methods[] = {
      METH_FASTCALL | METH_KEYWORDS, "Find extent"},
     {"find_inode", (PyCFunction)(_PyCFunctionFastWithKeywords)PyBcachefs_find_inode,
      METH_FASTCALL | METH_KEYWORDS, "Find inode"},
+    {"find_dirent", (PyCFunction)(_PyCFunctionFastWithKeywords)PyBcachefs_find_dirent,
+     METH_FASTCALL | METH_KEYWORDS, "Find dirent"},
     {"iter", (PyCFunction)(_PyCFunctionFastWithKeywords)PyBcachefs_iter,
      METH_FASTCALL | METH_KEYWORDS, "Iterate over entries of specified type"},
     {NULL, NULL, 0, NULL}  /* Sentinel */
@@ -269,11 +294,29 @@ static PyObject *PyBcachefs_iterator_next(PyBcachefs_iterator *self)
 }
 
 /**
+ * @brief
+ */
+
+static PyObject *PyBcachefs_iterator_next_bset(PyBcachefs_iterator *self)
+{
+    Bcachefs_iterator *iter = self->_iter;
+    while (iter->next_it)
+    {
+        iter = iter->next_it;
+    }
+    iter->bkey = NULL;
+    iter->bch_val = NULL;
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+/**
  * Table of methods.
  */
 
 static PyMethodDef PyBcachefs_iterator_methods[] = {
     {"next", (PyCFunction)PyBcachefs_iterator_next, METH_NOARGS, "Iterate to next item"},
+    {"next_bset", (PyCFunction)PyBcachefs_iterator_next_bset, METH_NOARGS, "Iterate to next bset"},
     {NULL, NULL, 0, NULL}  /* Sentinel */
 };
 

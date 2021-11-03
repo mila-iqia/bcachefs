@@ -208,9 +208,9 @@ def test_cursor_ls(image):
     assert os.path.exists(image)
     with Bcachefs(image) as fs, Bcachefs(image).cd() as cursor:
         cursor.cd("dir/subdir")
-        assert cursor.ls() == fs.ls("dir/subdir")
+        assert list(cursor.ls()) == list(fs.ls("dir/subdir"))
         cursor.cd()
-        assert cursor.ls() == fs.ls()
+        assert list(cursor.ls()) == list(fs.ls())
 
 
 @pytest.mark.parametrize("image", TEST_IMAGES)

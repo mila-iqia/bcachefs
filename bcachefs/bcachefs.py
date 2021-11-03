@@ -344,8 +344,6 @@ class Bcachefs:
         self._closed = True
         self._pwd = "/"  # Used in Cursor
         self._dirent = ROOT_DIRENT  # Used in Cursor
-        self._inodes_ls = {ROOT_DIRENT.inode: []}
-        self._inodes_tree = {}
 
     def open(self, name: [str, int], mode: str = "rb", encoding: str = "utf-8"):
         """Open a file inside the image for reading
@@ -399,24 +397,17 @@ class Bcachefs:
         ['file1', 'n09332890/n09332890_29876.JPEG', 'dir/subdir/file2', 'n04467665/n04467665_63788.JPEG', 'n02033041/n02033041_3834.JPEG', 'n02445715/n02445715_16523.JPEG', 'n04584207/n04584207_7936.JPEG']
 
         """
+        for name in self._namelist():
+            yield name
 
-        directories = self._inodes_ls.get(ROOT_DIRENT.inode, [])
-        return self._namelist("", directories)
-
-    def _namelist(self, path, directories):
-        names = []
-
-        for dirent in directories:
-            if dirent.is_dir:
-                children = self._inodes_ls.get(dirent.inode, [])
-                names.extend(
-                    self._namelist(os.path.join(path, dirent.name), children)
-                )
-
-            if dirent.is_file:
-                names.append(os.path.join(path, dirent.name))
-
-        return names
+    def _namelist(self, path: str = None):
+        for dirent in self.find_dirents(path):
+            name = os.path.join(path if path else "", dirent.name)
+            if dirent.type == DIR_TYPE:
+                for n in self._namelist(name):
+                    yield n
+            elif dirent.type == FILE_TYPE:
+                yield name
 
     def __enter__(self):
         self._open()
@@ -426,7 +417,7 @@ class Bcachefs:
         self.close()
 
     def __iter__(self):
-        return (ent for ent in self._inodes_tree.values())
+        return BcachefsIterDirEnt(self._filesystem)
 
     @property
     def path(self) -> str:
@@ -444,7 +435,7 @@ class Bcachefs:
 
     def cd(self, path: str = "/"):
         """Creates a cursor to a directory"""
-        cursor = Cursor(self.path, self._inodes_ls, self._inodes_tree)
+        cursor = Cursor(self.path)
         return cursor.cd(path)
 
     def _open(self):
@@ -453,7 +444,6 @@ class Bcachefs:
             self._filesystem.open(self._path)
             self._file = open(self._path, "rb")
             self._closed = False
-            self._parse()
 
     def close(self):
         if not self._closed:
@@ -477,20 +467,42 @@ class Bcachefs:
         inode = self._filesystem.find_inode(inode)
         return Inode(*inode) if inode else None
 
-    def find_dirent(self, path: str = None) -> DirEnt:
+    def find_dirent(self, path: [bytes, str] = None) -> DirEnt:
         """Resolve a path to its directory entry, returns none if it was not found"""
         if not path:
             dirent = self._dirent
         else:
-            parts = [p for p in path.split("/") if p]
-            dirent = self._dirent if not path.startswith("/") else ROOT_DIRENT
+            if isinstance(path, str):
+                path = path.encode()
+            dirent = self._dirent if not path.startswith(b"/") else ROOT_DIRENT
+            parts = [p for p in path.split(b"/") if p]
             while parts:
-                dirent = self._inodes_tree.get(
-                    (dirent.inode, parts.pop(0)), None
+                dirent = self._filesystem.find_dirent(
+                    dirent.inode, 0, parts.pop(0)
                 )
                 if dirent is None:
                     break
+                else:
+                    dirent = DirEnt(*dirent)
         return dirent
+
+    def find_dirents(self, path: [DirEnt, bytes, str] = None) -> DirEnt:
+        if isinstance(path, DirEnt):
+            root = path
+        else:
+            root = self.find_dirent(path)
+
+        if root is None:
+            raise StopIteration
+        if root.type == DIR_TYPE:
+            iter = BcachefsIterDirEnt(self._filesystem)
+            for dirent in iter:
+                if dirent.parent_inode == root.inode:
+                    yield dirent
+                elif dirent.parent_inode > root.inode:
+                    iter.next_bset()
+        else:
+            yield root
 
     def ls(self, path: [str, DirEnt] = None):
         """Show the files inside a given directory"""
@@ -501,9 +513,10 @@ class Bcachefs:
         else:
             parent = self.find_dirent(os.path.join(self._pwd, path))
         if parent.is_dir:
-            return self._inodes_ls[parent.inode]
+            for dirent in self.find_dirents(parent):
+                yield dirent
         else:
-            return [parent]
+            yield parent
 
     def read_file(self, inode: [str, int]) -> memoryview:
         with self.open(inode) as f:
@@ -520,34 +533,13 @@ class Bcachefs:
         if parent:
             return self._walk(top, parent)
 
-    def _parse(self):
-        """Generate a cache of bcachefs btrees"""
-        if len(self._inodes_ls) > 1:
-            return
-
-        for dirent in BcachefsIterDirEnt(self._filesystem):
-            if dirent.is_dir:
-                self._inodes_ls.setdefault(dirent.inode, [])
-
-        for dirent in BcachefsIterDirEnt(self._filesystem):
-            self._inodes_ls[dirent.parent_inode].append(dirent)
-            self._inodes_tree[(dirent.parent_inode, dirent.name)] = dirent
-
-        for parent_inode, ls in self._inodes_ls.items():
-            self._inodes_ls[parent_inode] = self._unique_dirent_list(ls)
-
     def _walk(self, dirpath: str, dirent: DirEnt):
-        dirs = [ent for ent in self._inodes_ls[dirent.inode] if ent.is_dir]
-        files = [ent for ent in self._inodes_ls[dirent.inode] if not ent.is_dir]
+        ls = list(self.ls(dirent))
+        dirs = [ent for ent in ls if ent.is_dir]
+        files = [ent for ent in ls if not ent.is_dir]
         yield dirpath, dirs, files
         for d in dirs:
             yield from self._walk(os.path.join(dirpath, d.name), d)
-
-    @staticmethod
-    def _unique_dirent_list(dirent_ls):
-        # It's possible to have multiple inodes for a single file and this
-        # implementation assumes that the first inode should be the correct one.
-        return list({ent.name: ent for ent in reversed(dirent_ls)}.values())
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -567,16 +559,12 @@ class Cursor(Bcachefs):
     def __init__(
         self,
         path: [str, Bcachefs],
-        inodes_ls: dict,
-        inodes_tree: dict,
     ):
         if isinstance(path, str):
             super(Cursor, self).__init__(path)
         else:
             path: Bcachefs
             super(Cursor, self).__init__(path.path)
-        self._inodes_ls = inodes_ls
-        self._inodes_tree = inodes_tree
         self._is_owner = False
 
     def __iter__(self):
@@ -629,6 +617,9 @@ class BcachefsIter:
             raise StopIteration
         return item
 
+    def next_bset(self):
+        return self._iter.next_bset()
+
 
 class BcachefsIterExtent(BcachefsIter):
     """Iterates over bcachefs extend btree"""
@@ -645,9 +636,14 @@ class BcachefsIterInode(BcachefsIter):
 
     def __init__(self, fs: _Bcachefs):
         super(BcachefsIterInode, self).__init__(fs, INODE_TYPE)
+        self._deleted = set()
 
     def __next__(self):
-        return Inode(*super(BcachefsIterInode, self).__next__())
+        inode = Inode(*super(BcachefsIterInode, self).__next__())
+        while not inode.hash_seed and inode.inode not in self._deleted:
+            self._deleted.add(inode.inode)
+            inode = Inode(*super(BcachefsIterInode, self).__next__())
+        return inode
 
 
 class BcachefsIterDirEnt(BcachefsIter):
@@ -655,6 +651,14 @@ class BcachefsIterDirEnt(BcachefsIter):
 
     def __init__(self, fs: _Bcachefs):
         super(BcachefsIterDirEnt, self).__init__(fs, DIRENT_TYPE)
+        self._deleted = set()
 
     def __next__(self):
-        return DirEnt(*super(BcachefsIterDirEnt, self).__next__())
+        dirent = DirEnt(*super(BcachefsIterDirEnt, self).__next__())
+        while (
+            not dirent.inode
+            and (dirent.parent_inode, dirent.name) not in self._deleted
+        ):
+            self._deleted.add((dirent.parent_inode, dirent.name))
+            dirent = DirEnt(*super(BcachefsIterDirEnt, self).__next__())
+        return dirent
