@@ -522,7 +522,7 @@ uint64_t benz_bch_fread_btree_node(struct btree_node *btree_node, const struct b
 // -----------------------------------------
 int Bcachefs_open(Bcachefs *this, const char *path)
 {
-    *this = Bcachefs_clean;
+    *this = BCACHEFS_CLEAN;
 
     int ret = 0;
     this->fp = fopen(path, "rb");
@@ -582,7 +582,7 @@ int Bcachefs_close(Bcachefs *this)
 Bcachefs_iterator* Bcachefs_iter(const Bcachefs *this, enum btree_id type)
 {
     Bcachefs_iterator *iter = malloc(sizeof(Bcachefs_iterator));
-    *iter = Bcachefs_iterator_clean;
+    *iter = BCACHEFS_ITERATOR_CLEAN;
     const Bcachefs_iterator *iter_begin = NULL;
     switch ((int)type)
     {
@@ -817,7 +817,7 @@ void _Bcachefs_iter_build_bsets_cache(const Bcachefs *this, Bcachefs_iterator *i
 
 int Bcachefs_iter_reinit(const Bcachefs *this, Bcachefs_iterator *iter, enum btree_id type)
 {
-    if (!memcmp(iter, &Bcachefs_iterator_clean, sizeof(Bcachefs_iterator)))
+    if (!memcmp(iter, &BCACHEFS_ITERATOR_CLEAN, sizeof(Bcachefs_iterator)))
     {
         // Initialize the iterator
         iter->type = type;
@@ -855,7 +855,7 @@ int Bcachefs_iter_reinit(const Bcachefs *this, Bcachefs_iterator *iter, enum btr
 
 int Bcachefs_iter_minimal_copy(const Bcachefs *this, Bcachefs_iterator *iter, const Bcachefs_iterator *other)
 {
-    if (memcmp(iter, &Bcachefs_iterator_clean, sizeof(Bcachefs_iterator)))
+    if (memcmp(iter, &BCACHEFS_ITERATOR_CLEAN, sizeof(Bcachefs_iterator)))
     {
         return 0;
     }

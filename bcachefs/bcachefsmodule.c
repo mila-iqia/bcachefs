@@ -36,7 +36,7 @@ static PyObject* PyBcachefs_new(PyTypeObject* type, PyObject* args, PyObject* kw
 static PyObject *PyBcachefs_open(PyBcachefs *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
     (void)kwnames;
-    self->_fs = Bcachefs_clean;
+    self->_fs = BCACHEFS_CLEAN;
     if (nargs != 1 || !Bcachefs_open(&self->_fs, (void*)PyUnicode_1BYTE_DATA(args[0])))
     {
         PyErr_SetString(PyExc_RuntimeError, "Error opening Bcachefs image file");

@@ -786,7 +786,6 @@ typedef struct Bcachefs_iterator {
     const struct bset **_bsets_end;             //! bsets list end pointer
 } Bcachefs_iterator;
 #define BCACHEFS_ITERATOR_CLEAN (Bcachefs_iterator){.type = BTREE_ID_NR}
-static const Bcachefs_iterator Bcachefs_iterator_clean = BCACHEFS_ITERATOR_CLEAN;
 
 typedef struct {
     FILE *fp;
@@ -805,7 +804,6 @@ typedef struct {
     ._root_stats = (Bcachefs_inode){0}, \
     ._root_dirent = (Bcachefs_dirent){0} \
 }
-static const Bcachefs Bcachefs_clean = BCACHEFS_CLEAN;
 
 
 /*! @brief  Open a Bcachefs disk image for reading
