@@ -106,17 +106,17 @@ def test_ls(image):
 
 
 @pytest.mark.parametrize("image", TEST_IMAGES)
-def test_read_file(image):
+def test_read(image):
     image = filepath(image)
     assert os.path.exists(image)
 
     with Bcachefs(image) as fs:
         inode = fs.find_dirent("file1").inode
-        assert bytes(fs.read_file(inode)) == b"File content 1\n"
+        assert bytes(fs.read(inode)) == b"File content 1\n"
 
         inode = fs.find_dirent("dir/subdir/file2").inode
-        assert fs.read_file(inode) == b"File content 2\n"
-        assert bytes(fs.read_file("dir/subdir/file2")) == b"File content 2\n"
+        assert fs.read(inode) == b"File content 2\n"
+        assert bytes(fs.read("dir/subdir/file2")) == b"File content 2\n"
 
 
 @pytest.mark.parametrize("image", TEST_IMAGES)
@@ -159,13 +159,13 @@ def test_walk(image):
         subdir_walk = list(fs.walk("dir/subdir"))
         assert len(subdir_walk) == 1
 
-        subdir_dirpath, subdir_dirnames, subdir_filenames = subdir_walk[0]
+        _, subdir_dirnames, subdir_filenames = subdir_walk[0]
         subdir_filenames = [f.name for f in subdir_filenames]
         assert len(subdir_dirnames) == 0
         assert subdir_filenames == ["file2"]
 
         dir_walk = list(fs.walk("dir"))
-        dir_dirpath, dir_dirnames, dir_filenames = dir_walk[0]
+        _, dir_dirnames, dir_filenames = dir_walk[0]
         dir_dirnames = [d.name for d in dir_dirnames]
         assert dir_dirnames == ["subdir"]
         assert len(dir_filenames) == 0
@@ -214,7 +214,12 @@ def test_cursor_walk(image):
     image = filepath(image)
     assert os.path.exists(image)
     with Bcachefs(image) as fs, Bcachefs(image).cd("dir") as cursor:
-        assert list(cursor.walk("subdir")) == list(fs.walk("dir/subdir"))
+        for (r1, d1, f1), (r2, d2, f2) in zip(
+            cursor.walk("subdir"), fs.walk("dir/subdir")
+        ):
+            assert r2.endswith(r1)
+            assert d1 == d2
+            assert f1 == f2
 
 
 def test_namelist():
