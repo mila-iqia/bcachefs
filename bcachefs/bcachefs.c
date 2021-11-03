@@ -248,7 +248,7 @@ struct bkey_local benz_bch_parse_bkey(const struct bkey *bkey, const struct bkey
 
 struct bkey_local_buffer benz_bch_parse_bkey_buffer(const struct bkey *bkey, const struct bkey_format *format, enum bch_bkey_fields fields_cnt)
 {
-    struct bkey_local_buffer buffer = {0};
+    struct bkey_local_buffer buffer = {{0}};
     uint64_t *value = buffer.buffer;
     if (bkey->format == KEY_FORMAT_LOCAL_BTREE)
     {
@@ -638,8 +638,8 @@ int _Bcachefs_find_bkey_lesser_than(struct bkey_local_buffer *buffer, struct bke
 
 const struct bkey* _Bcachefs_find_bkey(const Bcachefs *this, Bcachefs_iterator *iter, struct bkey_local_buffer *reference)
 {
-    struct bkey_local_buffer lower_bkey_value = {0};
-    struct bkey_local_buffer bkey_value = {0};
+    struct bkey_local_buffer lower_bkey_value = {{0}};
+    struct bkey_local_buffer bkey_value = {{0}};
     for (iter->bset = Bcachefs_iter_next_bset(this, iter); iter->bset;
          iter->bset = Bcachefs_iter_next_bset(this, iter))
     {
@@ -667,7 +667,7 @@ const struct bkey* _Bcachefs_find_bkey(const Bcachefs *this, Bcachefs_iterator *
             }
             else
             {
-                bkey_value = (struct bkey_local_buffer){0};
+                bkey_value = (struct bkey_local_buffer){{0}};
             }
         } while (bkey && _Bcachefs_find_bkey_lesser_than(&bkey_value, reference));
 
@@ -708,7 +708,7 @@ Bcachefs_extent Bcachefs_find_extent(const Bcachefs *this, uint64_t inode, uint6
 {
     Bcachefs_extent extent = {0};
     Bcachefs_iterator *iter = Bcachefs_iter(this, BTREE_ID_extents);
-    struct bkey_local_buffer reference = {0};
+    struct bkey_local_buffer reference = {{0}};
     reference.buffer[BKEY_FIELD_INODE] = inode;
     reference.buffer[BKEY_FIELD_OFFSET] = file_offset / BCH_SECTOR_SIZE + file_offset % BCH_SECTOR_SIZE;
     const struct bkey *bkey = _Bcachefs_find_bkey(this, iter, &reference);
@@ -735,7 +735,7 @@ Bcachefs_inode Bcachefs_find_inode(const Bcachefs *this, uint64_t inode)
     }
     Bcachefs_inode stats = {0};
     Bcachefs_iterator *iter = Bcachefs_iter(this, BTREE_ID_inodes);
-    struct bkey_local_buffer reference = {0};
+    struct bkey_local_buffer reference = {{0}};
     reference.buffer[BKEY_FIELD_OFFSET] = inode;
     const struct bkey *bkey = _Bcachefs_find_bkey(this, iter, &reference);
     if (bkey)
@@ -770,7 +770,7 @@ Bcachefs_dirent Bcachefs_find_dirent(const Bcachefs *this, uint64_t parent_inode
     }
     uint64_t offset = benz_siphash_digest(name, len, hash_seed, 0) >> 1;
     Bcachefs_iterator *iter = Bcachefs_iter(this, BTREE_ID_dirents);
-    struct bkey_local_buffer reference = {0};
+    struct bkey_local_buffer reference = {{0}};
     reference.buffer[BKEY_FIELD_INODE] = parent_inode;
     reference.buffer[BKEY_FIELD_OFFSET] = offset;
     const struct bkey *bkey = _Bcachefs_find_bkey(this, iter, &reference);
