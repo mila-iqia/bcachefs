@@ -36,6 +36,31 @@ int main()
     benz_print_hex(((const uint8_t*)&jset_magic) + 4, 4);
     printf("\n");
     printf("jset_magic:%llu\n", jset_magic);
+    uint64_t max_inode = 0;
+
+    // Inode (needs to be first to know the max inode)
+    // -----------------------------------------------------------------------------
+    {
+        Bcachefs_iterator *bchfs_iter = Bcachefs_iter(&bchfs, BTREE_ID_inodes);
+        bch_val = Bcachefs_iter_next(&bchfs, bchfs_iter);
+        for (int i = 0; bch_val; ++i, bch_val = Bcachefs_iter_next(&bchfs, bchfs_iter))
+        {
+            Bcachefs_inode inode = Bcachefs_iter_make_inode(&bchfs, bchfs_iter);
+            printf("inode  %3d: i:%llu, s:%10llu, h:%20llu\n", i, inode.inode, inode.size, inode.hash_seed);
+            if (max_inode < inode.inode)
+            {
+                max_inode = inode.inode;
+            }
+        }
+        Bcachefs_iter_fini(&bchfs, bchfs_iter);
+        free(bchfs_iter);
+
+        for (int i = 0, ino = BCACHEFS_ROOT_INO; ino <= max_inode; ++i, ++ino)
+        {
+            Bcachefs_inode inode = Bcachefs_find_inode(&bchfs, ino);
+            printf("inode  %3d: i:%llu, s:%10llu, h:%20llu\n", i, inode.inode, inode.size, inode.hash_seed);
+        }
+    }
 
     // Extent
     // ----------------------------------------------------------------------------
@@ -55,30 +80,21 @@ int main()
         }
         Bcachefs_iter_fini(&bchfs, bchfs_iter);
         free(bchfs_iter);
-    }
 
-    // Inode
-    // -----------------------------------------------------------------------------
-    {
-        Bcachefs_iterator *bchfs_iter = Bcachefs_iter(&bchfs, BTREE_ID_inodes);
-        bch_val = Bcachefs_iter_next(&bchfs, bchfs_iter);
-        uint64_t max_inode = 0;
-        for (int i = 0; bch_val; ++i, bch_val = Bcachefs_iter_next(&bchfs, bchfs_iter))
-        {
-            Bcachefs_inode inode = Bcachefs_iter_make_inode(&bchfs, bchfs_iter);
-            printf("inode  %3d: i:%llu, s:%10llu, h:%20llu\n", i, inode.inode, inode.size, inode.hash_seed);
-            if (max_inode < inode.inode)
-            {
-                max_inode = inode.inode;
-            }
-        }
-        Bcachefs_iter_fini(&bchfs, bchfs_iter);
-        free(bchfs_iter);
-
+        Bcachefs_extent extent = {0};
         for (int i = 0, ino = BCACHEFS_ROOT_INO; ino <= max_inode; ++i, ++ino)
         {
-            Bcachefs_inode inode = Bcachefs_find_inode(&bchfs, ino);
-            printf("inode  %3d: i:%llu, s:%10llu, h:%20llu\n", i, inode.inode, inode.size, inode.hash_seed);
+            do
+            {
+                extent = Bcachefs_find_extent(&bchfs, ino, extent.file_offset + extent.size);
+                printf("extent %4d: i:%llu fo:%10llu, o:%10llu, s:%10llu, t:%10llu\n", 
+                    ino,
+                    extent.inode, 
+                    extent.file_offset, 
+                    extent.offset, 
+                    extent.size,
+                    extent.file_offset + extent.size);
+            } while (extent.size);
         }
     }
 

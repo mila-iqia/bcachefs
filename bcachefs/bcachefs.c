@@ -249,9 +249,9 @@ struct bkey_local benz_bch_parse_bkey(const struct bkey *bkey, const struct bkey
 struct bkey_local_buffer benz_bch_parse_bkey_buffer(const struct bkey *bkey, const struct bkey_format *format, enum bch_bkey_fields fields_cnt)
 {
     struct bkey_local_buffer buffer = {0};
+    uint64_t *value = buffer.buffer;
     if (bkey->format == KEY_FORMAT_LOCAL_BTREE)
     {
-        uint64_t *value = buffer.buffer;
         const uint8_t *bytes = (const void*)bkey;
         bytes += format->key_u64s * BCH_U64S_SIZE;
         for (enum bch_bkey_fields i = 0; i < fields_cnt; ++i, ++value)
@@ -268,6 +268,34 @@ struct bkey_local_buffer benz_bch_parse_bkey_buffer(const struct bkey *bkey, con
             }
         }
         buffer.key_u64s = format->key_u64s;
+    }
+    else if (bkey->format == KEY_FORMAT_CURRENT)
+    {
+        for (enum bch_bkey_fields i = 0; i < fields_cnt; ++i, ++value)
+        {
+            switch ((int)i)
+            {
+            case BKEY_FIELD_INODE:
+                *value = bkey->p.inode;
+                break;
+            case BKEY_FIELD_OFFSET:
+                *value = bkey->p.offset;
+                break;
+            case BKEY_FIELD_SNAPSHOT:
+                *value = (uint64_t)bkey->p.snapshot;
+                break;
+            case BKEY_FIELD_SIZE:
+                *value = (uint64_t)bkey->size;
+                break;
+            case BKEY_FIELD_VERSION_HI:
+                *value = (uint64_t)bkey->version.hi;
+                break;
+            case BKEY_FIELD_VERSION_LO:
+                *value = bkey->version.lo;
+                break;
+            }
+        }
+        buffer.key_u64s = BKEY_U64s;
     }
     return buffer;
 }
@@ -630,6 +658,11 @@ const struct bkey* _Bcachefs_find_bkey(const Bcachefs *this, Bcachefs_iterator *
                 case BTREE_ID_dirents:
                     bkey_value = benz_bch_parse_bkey_buffer(bkey, &iter->btree_node->format, BKEY_FIELD_OFFSET + 1);
                     break;
+                case BTREE_ID_extents:
+                    bkey_value = benz_bch_parse_bkey_buffer(bkey, &iter->btree_node->format, BKEY_FIELD_SIZE + 1);
+                    bkey_value.buffer[BKEY_FIELD_OFFSET] -= bkey_value.buffer[BKEY_FIELD_SIZE];
+                    memset(&bkey_value.buffer[BKEY_FIELD_OFFSET + 1], 0, (BKEY_FIELD_SIZE - BKEY_FIELD_OFFSET) * sizeof(*bkey_value.buffer));
+                    break;
                 }
             }
             else
@@ -669,6 +702,29 @@ const struct bkey* _Bcachefs_find_bkey(const Bcachefs *this, Bcachefs_iterator *
     }
 
     return NULL;
+}
+
+Bcachefs_extent Bcachefs_find_extent(const Bcachefs *this, uint64_t inode, uint64_t file_offset)
+{
+    Bcachefs_extent extent = {0};
+    Bcachefs_iterator *iter = Bcachefs_iter(this, BTREE_ID_extents);
+    struct bkey_local_buffer reference = {0};
+    reference.buffer[BKEY_FIELD_INODE] = inode;
+    reference.buffer[BKEY_FIELD_OFFSET] = file_offset / BCH_SECTOR_SIZE + file_offset % BCH_SECTOR_SIZE;
+    const struct bkey *bkey = _Bcachefs_find_bkey(this, iter, &reference);
+    if (bkey)
+    {
+        switch (bkey->type)
+        {
+        case KEY_TYPE_deleted:
+            extent.inode = inode;
+        default:
+            extent = Bcachefs_iter_make_extent(this, iter);
+        }
+    }
+    Bcachefs_iter_fini(this, iter);
+    free(iter);
+    return extent;
 }
 
 Bcachefs_inode Bcachefs_find_inode(const Bcachefs *this, uint64_t inode)

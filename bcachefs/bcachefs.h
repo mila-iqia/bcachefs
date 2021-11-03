@@ -887,6 +887,7 @@ Bcachefs_inode Bcachefs_iter_make_inode(const Bcachefs *this, Bcachefs_iterator 
 Bcachefs_dirent Bcachefs_iter_make_dirent(const Bcachefs *this, Bcachefs_iterator *iter);
 
 
+Bcachefs_extent Bcachefs_find_extent(const Bcachefs *this, uint64_t inode, uint64_t file_offset);
 Bcachefs_inode Bcachefs_find_inode(const Bcachefs *this, uint64_t inode);
 Bcachefs_dirent Bcachefs_find_dirent(const Bcachefs *this, uint64_t parent_inode, uint64_t hash_seed, const uint8_t *name, const uint8_t len);
 int Bcachefs_next_iter(const Bcachefs *this, Bcachefs_iterator *iter, const struct bch_btree_ptr_v2 *btree_ptr);
