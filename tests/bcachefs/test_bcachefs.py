@@ -66,10 +66,10 @@ def test_find_dirent(image):
 
     with Bcachefs(image) as fs:
         dirent = fs.find_dirent("/")
-        assert dirent.parent_inode == 0
+        assert dirent.parent_inode == 4096
         assert dirent.inode == 4096
         assert dirent.type == bchfs.DIR_TYPE
-        assert dirent.name == "/"
+        assert dirent.name == ""
         assert dirent == bchfs.ROOT_DIRENT
 
         dir_dirent = fs.find_dirent("/dir")

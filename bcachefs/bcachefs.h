@@ -374,6 +374,12 @@ struct bkey_local {
     uint8_t     key_u64s;
 } __attribute__((packed, aligned(8)));
 
+struct bkey_local_buffer {
+    uint64_t    buffer[BKEY_NR_FIELDS];
+
+    uint8_t     key_u64s;
+};
+
 struct bkey {
     /* Size of combined key and value, in u64s */
     uint8_t     u64s;
@@ -720,7 +726,8 @@ const struct bch_val *benz_bch_next_bch_val(const struct bkey *p, const struct b
 const struct bset *benz_bch_next_bset(const struct btree_node *p, const void *p_end, const struct bset *c, const struct bch_sb *sb);
 const struct bkey *benz_bch_next_bkey(const struct bset *p, const struct bkey *c, enum bch_bkey_type type);
 
-struct bkey_local benz_bch_parse_bkey(const struct bkey *bkey, const struct bkey_format *format);
+struct bkey_local benz_bch_parse_bkey(const struct bkey *bkey, const struct bkey_local_buffer *buffer);
+struct bkey_local_buffer benz_bch_parse_bkey_buffer(const struct bkey *bkey, const struct bkey_format *format, enum bch_bkey_fields fields_cnt);
 uint64_t benz_bch_parse_bkey_field(const struct bkey *bkey, const struct bkey_format *format, enum bch_bkey_fields field);
 
 uint64_t benz_bch_get_sb_size(const struct bch_sb *sb);
@@ -762,7 +769,7 @@ typedef struct {
     uint64_t inode;
     uint8_t type;
     const uint8_t *name;
-    const uint8_t name_len;
+    uint8_t name_len;
 } Bcachefs_dirent;
 
 typedef struct Bcachefs_iterator {
@@ -788,13 +795,15 @@ typedef struct {
     Bcachefs_iterator _extents_iter_begin;
     Bcachefs_iterator _inodes_iter_begin;
     Bcachefs_iterator _dirents_iter_begin;
-    Bcachefs_inode _root;
+    Bcachefs_inode _root_stats;
+    Bcachefs_dirent _root_dirent;
 } Bcachefs;
 #define BCACHEFS_CLEAN (Bcachefs){ \
     ._extents_iter_begin = BCACHEFS_ITERATOR_CLEAN, \
     ._inodes_iter_begin = BCACHEFS_ITERATOR_CLEAN, \
     ._dirents_iter_begin = BCACHEFS_ITERATOR_CLEAN, \
-    ._root = (Bcachefs_inode){0} \
+    ._root_stats = (Bcachefs_inode){0}, \
+    ._root_dirent = (Bcachefs_dirent){0} \
 }
 static const Bcachefs Bcachefs_clean = BCACHEFS_CLEAN;
 
@@ -879,6 +888,7 @@ Bcachefs_dirent Bcachefs_iter_make_dirent(const Bcachefs *this, Bcachefs_iterato
 
 
 Bcachefs_inode Bcachefs_find_inode(const Bcachefs *this, uint64_t inode);
+Bcachefs_dirent Bcachefs_find_dirent(const Bcachefs *this, uint64_t parent_inode, uint64_t hash_seed, const uint8_t *name, const uint8_t len);
 int Bcachefs_next_iter(const Bcachefs *this, Bcachefs_iterator *iter, const struct bch_btree_ptr_v2 *btree_ptr);
 int Bcachefs_iter_reinit(const Bcachefs *this, Bcachefs_iterator *iter, enum btree_id type);
 int Bcachefs_iter_minimal_copy(const Bcachefs *this, Bcachefs_iterator *iter, const Bcachefs_iterator *other);

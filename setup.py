@@ -17,8 +17,12 @@ if "-coverage" in sys.argv:
 
 bcachefs_module = Extension(
     name="bcachefs.c_bcachefs",
-    sources=["bcachefs/bcachefs.c", "bcachefs/bcachefsmodule.c"],
-    include_dirs=["bcachefs/"],
+    sources=[
+        "bcachefs/bcachefs.c",
+        "bcachefs/bcachefsmodule.c",
+        "libbenzina/siphash.c",
+    ],
+    include_dirs=["bcachefs/", "libbenzina/"],
     extra_compile_args=extra_compile_args,
     libraries=libraries,
 )

@@ -66,7 +66,7 @@ int main()
         for (int i = 0; bch_val; ++i, bch_val = Bcachefs_iter_next(&bchfs, bchfs_iter))
         {
             Bcachefs_inode inode = Bcachefs_iter_make_inode(&bchfs, bchfs_iter);
-            printf("inode %3d: i:%llu, s:%10llu, h:%20llu\n", i, inode.inode, inode.size, inode.hash_seed);
+            printf("inode  %3d: i:%llu, s:%10llu, h:%20llu\n", i, inode.inode, inode.size, inode.hash_seed);
             if (max_inode < inode.inode)
             {
                 max_inode = inode.inode;
@@ -78,7 +78,7 @@ int main()
         for (int i = 0, ino = BCACHEFS_ROOT_INO; ino <= max_inode; ++i, ++ino)
         {
             Bcachefs_inode inode = Bcachefs_find_inode(&bchfs, ino);
-            printf("inode %3d: i:%llu, s:%10llu, h:%20llu\n", i, inode.inode, inode.size, inode.hash_seed);
+            printf("inode  %3d: i:%llu, s:%10llu, h:%20llu\n", i, inode.inode, inode.size, inode.hash_seed);
         }
     }
 
@@ -92,7 +92,18 @@ int main()
             Bcachefs_dirent dirent = Bcachefs_iter_make_dirent(&bchfs, bchfs_iter);
             char fname[30] = {0};
             memcpy(fname, dirent.name, dirent.name_len);
+            fname[dirent.name_len] = '\0';
 
+            printf("dirent %3d: p:%10llu, i:%10llu, t:%10u, %s\n",
+                i,
+                dirent.parent_inode,
+                dirent.inode,
+                dirent.type,
+                fname);
+
+            dirent = Bcachefs_find_dirent(&bchfs, dirent.parent_inode, 0, dirent.name, dirent.name_len);
+            memcpy(fname, dirent.name, dirent.name_len);
+            fname[dirent.name_len] = '\0';
             printf("dirent %3d: p:%10llu, i:%10llu, t:%10u, %s\n",
                 i,
                 dirent.parent_inode,
@@ -102,6 +113,16 @@ int main()
         }
         Bcachefs_iter_fini(&bchfs, bchfs_iter);
         free(bchfs_iter);
+
+        Bcachefs_dirent dirent = Bcachefs_find_dirent(&bchfs, 0, 0, (const void*)"", 1);
+        char fname[30] = {0};
+        memcpy(fname, dirent.name, dirent.name_len);
+        printf("dirent %3d: p:%10llu, i:%10llu, t:%10u, %s\n",
+            0,
+            dirent.parent_inode,
+            dirent.inode,
+            dirent.type,
+            fname);
     }
 
     Bcachefs_close(&bchfs);

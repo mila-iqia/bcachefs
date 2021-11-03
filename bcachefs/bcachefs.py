@@ -101,7 +101,7 @@ class DirEnt:
         return self.name
 
 
-ROOT_DIRENT = DirEnt(0, 4096, DIR_TYPE, "/")
+ROOT_DIRENT = DirEnt(4096, 4096, DIR_TYPE, "")
 LOSTFOUND_DIRENT = DirEnt(4096, 4097, DIR_TYPE, "lost+found")
 
 
