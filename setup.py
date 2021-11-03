@@ -19,6 +19,7 @@ bcachefs_module = Extension(
     name="bcachefs.c_bcachefs",
     sources=[
         "bcachefs/bcachefs.c",
+        "bcachefs/bcachefs_iterator.c",
         "bcachefs/bcachefsmodule.c",
         "bcachefs/utils.c",
         "libbenzina/bcachefs.c",

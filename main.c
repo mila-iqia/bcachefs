@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "bcachefs/bcachefs.h"
+#include "bcachefs/bcachefs_iterator.h"
 
 #define MINI "testdata/mini_bcachefs.img"
 
