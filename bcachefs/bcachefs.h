@@ -1,6 +1,6 @@
 /* Include Guard */
-#ifndef INCLUDE_BENZINA_BCACHEFS_H
-#define INCLUDE_BENZINA_BCACHEFS_H
+#ifndef INCLUDE_BCACHEFS_H
+#define INCLUDE_BCACHEFS_H
 
 
 /**
@@ -8,7 +8,7 @@
  */
 
 #include <stdio.h>
-
+#include "utils.h"
 
 /* Extern "C" Guard */
 #ifdef __cplusplus
@@ -16,15 +16,6 @@ extern "C" {
 #endif
 
 /* Defines */
-
-typedef signed char int8_t;
-typedef signed short int16_t;
-typedef signed int int32_t;
-typedef __int64_t int64_t;
-typedef unsigned char uint8_t;
-typedef unsigned short uint16_t;
-typedef unsigned int uint32_t;
-typedef __uint64_t uint64_t;
 
 #define BCH_SB_SECTOR           8
 #define BCH_SB_LABEL_SIZE       32
@@ -895,14 +886,6 @@ const struct jset_entry *Bcachefs_iter_next_jset_entry(const Bcachefs *this, Bca
 const struct bch_btree_ptr_v2 *Bcachefs_iter_next_btree_ptr(const Bcachefs *this, Bcachefs_iterator *iter);
 const struct bset *Bcachefs_iter_next_bset(const Bcachefs *this, Bcachefs_iterator *iter);
 
-uint64_t benz_get_flag_bits(const uint64_t bitfield, uint8_t first_bit, uint8_t last_bit);
-
-uint64_t benz_uintXX_as_uint64(const uint8_t *bytes, uint8_t sizeof_uint);
-
-void benz_print_chars(const uint8_t *bytes, uint64_t len);
-void benz_print_bytes(const uint8_t *bytes, uint64_t len);
-void benz_print_bits(uint64_t bitfield);
-void benz_print_hex(const uint8_t *hex, uint64_t len);
 void benz_print_uuid(const struct uuid *uuid);
 
 /* End Extern "C" and Include Guard */

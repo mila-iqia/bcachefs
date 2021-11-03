@@ -6,5 +6,6 @@ include_directories(bcachefs/ libbenzina/)
 
 add_executable(bch main.c
     bcachefs/bcachefs.c
+    bcachefs/utils.c
     libbenzina/siphash.c
 )
