@@ -2,10 +2,11 @@ cmake_minimum_required(VERSION 3.5)
 
 project(bcachefs LANGUAGES C)
 
-include_directories(bcachefs/ libbenzina/)
+include_directories(bcachefs/ ./)
 
 add_executable(bch main.c
     bcachefs/bcachefs.c
     bcachefs/utils.c
+    libbenzina/bcachefs.c
     libbenzina/siphash.c
 )

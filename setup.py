@@ -21,9 +21,10 @@ bcachefs_module = Extension(
         "bcachefs/bcachefs.c",
         "bcachefs/bcachefsmodule.c",
         "bcachefs/utils.c",
+        "libbenzina/bcachefs.c",
         "libbenzina/siphash.c",
     ],
-    include_dirs=["bcachefs/", "libbenzina/"],
+    include_dirs=["bcachefs/", "./"],
     extra_compile_args=extra_compile_args,
     libraries=libraries,
 )
