@@ -254,10 +254,6 @@ struct bkey_local_buffer benz_bch_parse_bkey_buffer(const struct bkey *bkey, con
         for (enum bch_bkey_fields i = 0; i < fields_cnt; ++i, ++value)
         {
             *value = format->field_offset[i];
-            if (*value + format->bits_per_field[i] == 0)
-            {
-                continue;
-            }
             if (format->bits_per_field[i])
             {
                 bytes -= format->bits_per_field[i] / 8;

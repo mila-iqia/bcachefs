@@ -118,7 +118,10 @@ int main()
                 fname);
 
             dirent = Bcachefs_find_dirent(&bchfs, dirent.parent_inode, 0, dirent.name, dirent.name_len);
-            memcpy(fname, dirent.name, dirent.name_len);
+            if (dirent.name_len)
+            {
+                memcpy(fname, dirent.name, dirent.name_len);
+            }
             fname[dirent.name_len] = '\0';
             printf("dirent %3d: p:%10llu, i:%10llu, t:%10u, %s\n",
                 i,
