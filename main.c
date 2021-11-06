@@ -133,9 +133,13 @@ int main()
         Bcachefs_iter_fini(&bchfs, bchfs_iter);
         free(bchfs_iter);
 
-        Bcachefs_dirent dirent = Bcachefs_find_dirent(&bchfs, 0, 0, (const void*)"", 1);
         char fname[30] = {0};
-        memcpy(fname, dirent.name, dirent.name_len);
+        Bcachefs_dirent dirent = Bcachefs_find_dirent(&bchfs, 0, 0, (const void*)"", 1);
+        if (strlen(dirent.name))
+        {
+            strcpy(fname, dirent.name);
+        }
+        fname[dirent.name_len] = '\0';
         printf("dirent %3d: p:%10llu, i:%10llu, t:%10u, %s\n",
             0,
             dirent.parent_inode,
@@ -144,6 +148,5 @@ int main()
             fname);
     }
 
-    Bcachefs_close(&bchfs);
-    return 0;
+    return !Bcachefs_close(&bchfs);
 }

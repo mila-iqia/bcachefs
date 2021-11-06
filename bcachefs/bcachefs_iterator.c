@@ -29,6 +29,7 @@ int Bcachefs_open(Bcachefs *this, const char *path)
             Bcachefs_iter_reinit(this, &this->_extents_iter_begin, BTREE_ID_extents) &&
             Bcachefs_iter_reinit(this, &this->_inodes_iter_begin, BTREE_ID_inodes) &&
             Bcachefs_iter_reinit(this, &this->_dirents_iter_begin, BTREE_ID_dirents);
+        this->_iter = Bcachefs_iter(this, BTREE_ID_NR);
     }
     if (ret)
     {
@@ -37,34 +38,39 @@ int Bcachefs_open(Bcachefs *this, const char *path)
                                                .inode=BCACHEFS_ROOT_INO,
                                                .type=4,
                                                .name=(const void*)"",
-                                               .name_len=1};
+                                               .name_len=0};
         ret = this->_root_stats.hash_seed != 0;
     }
     if (!ret)
     {
         Bcachefs_close(this);
     }
-    return ret;
+    return ret && this->fp && this->sb && this->_iter;
 }
 
 int Bcachefs_close(Bcachefs *this)
 {
-    if (this->fp && !fclose(this->fp))
+    this->_root_stats = (Bcachefs_inode){0};
+    this->_root_dirent = (Bcachefs_dirent){0};
+    int ret = Bcachefs_iter_fini(this, &this->_extents_iter_begin) &&
+        Bcachefs_iter_fini(this, &this->_inodes_iter_begin) &&
+        Bcachefs_iter_fini(this, &this->_dirents_iter_begin);
+    if (this->_iter && Bcachefs_iter_fini(this, this->_iter))
     {
-        this->fp = NULL;
-        this->size = 0;
+        free(this->_iter);
+        this->_iter = NULL;
     }
     if (this->sb)
     {
         free(this->sb);
         this->sb = NULL;
     }
-    this->_root_stats = (Bcachefs_inode){0};
-    this->_root_dirent = (Bcachefs_dirent){0};
-    return this->fp == NULL && this->sb == NULL &&
-        Bcachefs_iter_fini(this, &this->_extents_iter_begin) &&
-        Bcachefs_iter_fini(this, &this->_inodes_iter_begin) &&
-        Bcachefs_iter_fini(this, &this->_dirents_iter_begin);
+    if (this->fp && !fclose(this->fp))
+    {
+        this->fp = NULL;
+        this->size = 0;
+    }
+    return ret && this->fp == NULL && this->sb == NULL && this->_iter == NULL;
 }
 
 Bcachefs_iterator* Bcachefs_iter(const Bcachefs *this, enum btree_id type)
@@ -84,8 +90,8 @@ Bcachefs_iterator* Bcachefs_iter(const Bcachefs *this, enum btree_id type)
         iter_begin = &this->_dirents_iter_begin;
         break;
     }
-    if (iter_begin &&
-        Bcachefs_iter_minimal_copy(this, iter, iter_begin)) {}
+    if (!iter_begin) {} // return clean iterator
+    else if (Bcachefs_iter_minimal_copy(this, iter, iter_begin)) {}
     else
     {
         free(iter);
@@ -118,7 +124,7 @@ int Bcachefs_next_iter(const Bcachefs *this, Bcachefs_iterator *iter, const stru
     }
 }
 
-int _Bcachefs_find_bkey_lesser_than(struct bkey_local_buffer *buffer, struct bkey_local_buffer *reference)
+int _Bcachefs_comp_bkey_lesser_than(struct bkey_local_buffer *buffer, struct bkey_local_buffer *reference)
 {
     enum bch_bkey_fields field = 0;
     for (; field < BKEY_NR_FIELDS && buffer->buffer[field] == reference->buffer[field]; ++field) {}
@@ -154,7 +160,7 @@ const struct bkey* _Bcachefs_find_bkey(const Bcachefs *this, Bcachefs_iterator *
             {
                 bkey_value = (struct bkey_local_buffer){{0}};
             }
-        } while (bkey && _Bcachefs_find_bkey_lesser_than(&bkey_value, reference));
+        } while (bkey && _Bcachefs_comp_bkey_lesser_than(&bkey_value, reference));
 
         if (!memcmp(bkey_value.buffer, reference->buffer, sizeof(bkey_value.buffer)))
         {
@@ -174,7 +180,13 @@ const struct bkey* _Bcachefs_find_bkey(const Bcachefs *this, Bcachefs_iterator *
             bkey_value.buffer[BKEY_FIELD_INODE] = btree_ptr->min_key.inode;
             bkey_value.buffer[BKEY_FIELD_OFFSET] = btree_ptr->min_key.offset;
             memset(&bkey_value.buffer[BKEY_FIELD_OFFSET + 1], 0, (BKEY_FIELD_SIZE - BKEY_FIELD_OFFSET) * sizeof(*bkey_value.buffer));
-            if (_Bcachefs_find_bkey_lesser_than(&bkey_value, reference) && Bcachefs_next_iter(this, iter, btree_ptr))
+            if (iter->next_it && Bcachefs_iter_fini(this, iter->next_it))
+            {
+                free(iter->next_it);
+                iter->next_it = NULL;
+            }
+            if (_Bcachefs_comp_bkey_lesser_than(&bkey_value, reference) && !iter->next_it &&
+                    Bcachefs_next_iter(this, iter, btree_ptr))
             {
                 bkey = _Bcachefs_find_bkey(this, iter->next_it, reference);
                 if (bkey)
@@ -188,13 +200,22 @@ const struct bkey* _Bcachefs_find_bkey(const Bcachefs *this, Bcachefs_iterator *
     return NULL;
 }
 
-Bcachefs_extent Bcachefs_find_extent(const Bcachefs *this, uint64_t inode, uint64_t file_offset)
+Bcachefs_extent Bcachefs_find_extent(Bcachefs *this, uint64_t inode, uint64_t file_offset)
 {
     Bcachefs_extent extent = {0};
-    Bcachefs_iterator *iter = Bcachefs_iter(this, BTREE_ID_extents);
     struct bkey_local_buffer reference = {{0}};
     reference.buffer[BKEY_FIELD_INODE] = inode;
     reference.buffer[BKEY_FIELD_OFFSET] = file_offset / BCH_SECTOR_SIZE + file_offset % BCH_SECTOR_SIZE;
+    if (Bcachefs_iter_fini(this, this->_iter))
+    {
+        free(this->_iter);
+        this->_iter = Bcachefs_iter(this, BTREE_ID_extents);
+    }
+    else
+    {
+        return extent;
+    }
+    Bcachefs_iterator *iter = this->_iter;
     const struct bkey *bkey = _Bcachefs_find_bkey(this, iter, &reference);
     if (bkey)
     {
@@ -206,21 +227,28 @@ Bcachefs_extent Bcachefs_find_extent(const Bcachefs *this, uint64_t inode, uint6
             extent = Bcachefs_iter_make_extent(this, iter);
         }
     }
-    Bcachefs_iter_fini(this, iter);
-    free(iter);
     return extent;
 }
 
-Bcachefs_inode Bcachefs_find_inode(const Bcachefs *this, uint64_t inode)
+Bcachefs_inode Bcachefs_find_inode(Bcachefs *this, uint64_t inode)
 {
     if (inode == this->_root_stats.inode)
     {
         return this->_root_stats;
     }
     Bcachefs_inode stats = {0};
-    Bcachefs_iterator *iter = Bcachefs_iter(this, BTREE_ID_inodes);
     struct bkey_local_buffer reference = {{0}};
     reference.buffer[BKEY_FIELD_OFFSET] = inode;
+    if (Bcachefs_iter_fini(this, this->_iter))
+    {
+        free(this->_iter);
+        this->_iter = Bcachefs_iter(this, BTREE_ID_inodes);
+    }
+    else
+    {
+        return stats;
+    }
+    Bcachefs_iterator *iter = this->_iter;
     const struct bkey *bkey = _Bcachefs_find_bkey(this, iter, &reference);
     if (bkey)
     {
@@ -232,12 +260,10 @@ Bcachefs_inode Bcachefs_find_inode(const Bcachefs *this, uint64_t inode)
             stats = Bcachefs_iter_make_inode(this, iter);
         }
     }
-    Bcachefs_iter_fini(this, iter);
-    free(iter);
     return stats;
 }
 
-Bcachefs_dirent Bcachefs_find_dirent(const Bcachefs *this, uint64_t parent_inode, uint64_t hash_seed, const uint8_t *name, const uint8_t len)
+Bcachefs_dirent Bcachefs_find_dirent(Bcachefs *this, uint64_t parent_inode, uint64_t hash_seed, const uint8_t *name, const uint8_t len)
 {
     if (!strcmp((const void*)name, (const void*)this->_root_dirent.name))
     {
@@ -253,10 +279,19 @@ Bcachefs_dirent Bcachefs_find_dirent(const Bcachefs *this, uint64_t parent_inode
         return dirent;
     }
     uint64_t offset = benz_siphash_digest(name, len, hash_seed, 0) >> 1;
-    Bcachefs_iterator *iter = Bcachefs_iter(this, BTREE_ID_dirents);
     struct bkey_local_buffer reference = {{0}};
     reference.buffer[BKEY_FIELD_INODE] = parent_inode;
     reference.buffer[BKEY_FIELD_OFFSET] = offset;
+    if (Bcachefs_iter_fini(this, this->_iter))
+    {
+        free(this->_iter);
+        this->_iter = Bcachefs_iter(this, BTREE_ID_dirents);
+    }
+    else
+    {
+        return dirent;
+    }
+    Bcachefs_iterator *iter = this->_iter;
     const struct bkey *bkey = _Bcachefs_find_bkey(this, iter, &reference);
     if (bkey)
     {
@@ -270,8 +305,6 @@ Bcachefs_dirent Bcachefs_find_dirent(const Bcachefs *this, uint64_t parent_inode
             dirent = Bcachefs_iter_make_dirent(this, iter);
         }
     }
-    Bcachefs_iter_fini(this, iter);
-    free(iter);
     return dirent;
 }
 
