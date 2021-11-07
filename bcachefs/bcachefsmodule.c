@@ -83,7 +83,7 @@ static PyObject *PyBcachefs_iter(PyBcachefs *self, PyObject *const *args, Py_ssi
     if (iter->_iter == NULL)
     {
         PyErr_SetString(PyExc_RuntimeError, "Error initializing Bcachefs iterator");
-        Py_XDECREF(iter);
+        Py_DECREF(iter);
         return NULL;
     }
     Py_INCREF(iter);

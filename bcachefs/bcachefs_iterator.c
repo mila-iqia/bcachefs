@@ -592,7 +592,7 @@ Bcachefs_extent Bcachefs_iter_make_extent(const Bcachefs *this, Bcachefs_iterato
         iter = iter->next_it;
     }
 
-    const struct bkey_local_buffer buffer = benz_bch_parse_bkey_buffer(iter->bkey, &iter->btree_node->format, BKEY_FIELD_OFFSET + 1);
+    const struct bkey_local_buffer buffer = benz_bch_parse_bkey_buffer(iter->bkey, &iter->btree_node->format, BKEY_NR_FIELDS);
     const struct bkey_local bkey_local = benz_bch_parse_bkey(iter->bkey, &buffer);
     const struct bkey *bkey = (const void*)&bkey_local;
     Bcachefs_extent extent = {.inode = bkey->p.inode};
@@ -616,7 +616,7 @@ Bcachefs_inode Bcachefs_iter_make_inode(const Bcachefs *this, Bcachefs_iterator 
     }
 
     const struct bkey *bkey = iter->bkey;
-    const struct bkey_local_buffer buffer = benz_bch_parse_bkey_buffer(bkey, &iter->btree_node->format, BKEY_FIELD_OFFSET + 1);
+    const struct bkey_local_buffer buffer = benz_bch_parse_bkey_buffer(bkey, &iter->btree_node->format, BKEY_NR_FIELDS);
     const struct bkey_local bkey_local = benz_bch_parse_bkey(bkey, &buffer);
     const struct bch_inode *bch_inode = (const void*)iter->bch_val;
 
@@ -638,7 +638,7 @@ Bcachefs_dirent Bcachefs_iter_make_dirent(const Bcachefs *this, Bcachefs_iterato
         iter = iter->next_it;
     }
     const struct bkey *bkey = iter->bkey;
-    const struct bkey_local_buffer buffer = benz_bch_parse_bkey_buffer(bkey, &iter->btree_node->format, BKEY_FIELD_OFFSET + 1);
+    const struct bkey_local_buffer buffer = benz_bch_parse_bkey_buffer(bkey, &iter->btree_node->format, BKEY_NR_FIELDS);
     const struct bkey_local bkey_local = benz_bch_parse_bkey(bkey, &buffer);
     const struct bch_dirent *bch_dirent = (const void*)iter->bch_val;
     const uint8_t name_len = strlen((const void*)bch_dirent->d_name);

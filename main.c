@@ -135,9 +135,9 @@ int main()
 
         char fname[30] = {0};
         Bcachefs_dirent dirent = Bcachefs_find_dirent(&bchfs, 0, 0, (const void*)"", 1);
-        if (strlen(dirent.name))
+        if (strlen((const void*)dirent.name))
         {
-            strcpy(fname, dirent.name);
+            strcpy(fname, (const void*)dirent.name);
         }
         fname[dirent.name_len] = '\0';
         printf("dirent %3d: p:%10llu, i:%10llu, t:%10u, %s\n",

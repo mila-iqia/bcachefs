@@ -639,17 +639,15 @@ class Cursor(FilesystemMixin):
         filesystem: Union[str, Bcachefs],
         path: str,
     ):
-        with (
-            Bcachefs(filesystem) if isinstance(filesystem, str) else filesystem
-        ) as fs:
-            self._file = open(fs.filename, "rb")
-            self._pwd = path
-            self._dirent = fs.find_dirent(path)
-            self._extents_map = {}
-            self._inodes_ls = {self._dirent.inode: []}
-            self._inodes_tree = {}
-            self._inode_map = {}
-            self._parse(fs)
+        fs = Bcachefs(filesystem) if isinstance(filesystem, str) else filesystem
+        self._file = open(fs.filename, "rb")
+        self._pwd = path
+        self._dirent = fs.find_dirent(path)
+        self._extents_map = None
+        self._inodes_ls = None
+        self._inodes_tree = None
+        self._inode_map = None
+        self._parse(fs)
 
     def __enter__(self):
         if self._file.closed:
@@ -734,16 +732,41 @@ class Cursor(FilesystemMixin):
         if self._extents_map:
             return
 
-        for _, dirs, files in filesystem.walk(self._dirent):
+        self._inodes_ls = {ROOT_DIRENT.inode: []}
+        self._inodes_tree = {}
+
+        # Keep a clean version of the structs
+        _extents_map = {}
+        _inodes_ls = {self._dirent.inode: []}
+        _inodes_tree = {}
+        _inode_map = {}
+
+        # Load all dirents
+        dirents = list(filesystem.dirents())
+        for dirent in dirents:
+            if dirent.is_dir:
+                self._inodes_ls.setdefault(dirent.inode, [])
+
+        for dirent in dirents:
+            self._inodes_ls[dirent.parent_inode].append(dirent)
+            self._inodes_tree[(dirent.parent_inode, dirent.name)] = dirent
+
+        # Filter only files and directorys under self.pwd
+        for _, dirs, files in self.walk(self._dirent):
             for d in dirs:
-                self._inodes_ls.setdefault(d.inode, [])
-                self._inodes_ls[d.parent_inode].append(d)
-                self._inodes_tree[(d.parent_inode, d.name)] = d
+                _inodes_ls.setdefault(d.inode, [])
+                _inodes_ls[d.parent_inode].append(d)
+                _inodes_tree[(d.parent_inode, d.name)] = d
             for f in files:
-                self._extents_map[f.inode] = []
-                self._inode_map[f.inode] = None
-                self._inodes_ls[f.parent_inode].append(f)
-                self._inodes_tree[(f.parent_inode, f.name)] = f
+                _extents_map[f.inode] = []
+                _inode_map[f.inode] = None
+                _inodes_ls[f.parent_inode].append(f)
+                _inodes_tree[(f.parent_inode, f.name)] = f
+
+        self._extents_map = _extents_map
+        self._inode_map = _inode_map
+        self._inodes_ls = _inodes_ls
+        self._inodes_tree = _inodes_tree
 
         for extent in filesystem.extents():
             if extent.inode not in self._extents_map:
@@ -751,9 +774,18 @@ class Cursor(FilesystemMixin):
             self._extents_map[extent.inode].append(extent)
 
         for inode in filesystem.inodes():
-            if inode.inode not in self._inode_map:
+            if (
+                inode.inode not in self._inode_map
+                or self._inode_map.get(inode.inode, None) is not None
+            ):
                 continue
             self._inode_map[inode.inode] = inode
+
+        for inode, extents in self._extents_map.items():
+            self._extents_map[inode] = self._unique_extent_list(extents)
+
+        for parent_inode, ls in self._inodes_ls.items():
+            self._inodes_ls[parent_inode] = self._unique_dirent_list(ls)
 
     def _walk(self, top: str, dirent: DirEnt):
         dirs = [ent for ent in self._inodes_ls[dirent.inode] if ent.is_dir]
@@ -761,6 +793,23 @@ class Cursor(FilesystemMixin):
         yield top, dirs, files
         for d in dirs:
             yield from self._walk(os.path.join(top, d.name), d)
+
+    @staticmethod
+    def _unique_extent_list(inode_extents):
+        # It's possible to have multiple duplicated extents for a single inode
+        # and this implementation assumes that the last ones should be the
+        # correct ones.
+        unique_extent_list = []
+        for ent in sorted(inode_extents, key=lambda _: _.file_offset):
+            if ent not in unique_extent_list[-1:]:
+                unique_extent_list.append(ent)
+        return unique_extent_list
+
+    @staticmethod
+    def _unique_dirent_list(dirent_ls):
+        # It's possible to have multiple inodes for a single file and this
+        # implementation assumes that the first inode should be the correct one.
+        return list({ent.name: ent for ent in reversed(dirent_ls)}.values())
 
 
 class BcachefsIter:
@@ -799,7 +848,7 @@ class BcachefsIterInode(BcachefsIter):
 
     def __next__(self):
         inode = Inode(*super(BcachefsIterInode, self).__next__())
-        while not inode.hash_seed and inode.inode not in self._deleted:
+        while not inode.hash_seed or inode.inode in self._deleted:
             self._deleted.add(inode.inode)
             inode = Inode(*super(BcachefsIterInode, self).__next__())
         return inode
@@ -816,7 +865,7 @@ class BcachefsIterDirEnt(BcachefsIter):
         dirent = DirEnt(*super(BcachefsIterDirEnt, self).__next__())
         while (
             not dirent.inode
-            and (dirent.parent_inode, dirent.name) not in self._deleted
+            or (dirent.parent_inode, dirent.name) in self._deleted
         ):
             self._deleted.add((dirent.parent_inode, dirent.name))
             dirent = DirEnt(*super(BcachefsIterDirEnt, self).__next__())

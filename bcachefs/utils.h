@@ -6,21 +6,12 @@
  * Includes
  */
 
-#include <stdio.h>
+#include <stdint.h>
 
 /* Extern "C" Guard */
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef signed char int8_t;
-typedef signed short int16_t;
-typedef signed int int32_t;
-typedef __int64_t int64_t;
-typedef unsigned char uint8_t;
-typedef unsigned short uint16_t;
-typedef unsigned int uint32_t;
-typedef __uint64_t uint64_t;
 
 uint64_t benz_get_flag_bits(const uint64_t bitfield, uint8_t first_bit, uint8_t last_bit);
 

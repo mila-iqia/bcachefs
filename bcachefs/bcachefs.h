@@ -7,6 +7,8 @@
  * Includes
  */
 
+#include <stdio.h>
+
 #include "utils.h"
 
 /* Extern "C" Guard */
