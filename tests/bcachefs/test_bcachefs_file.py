@@ -8,7 +8,7 @@ from PIL import Image, ImageFile, UnidentifiedImageError
 
 import bcachefs.bcachefs as bchfs
 from bcachefs import Bcachefs
-from bcachefs.testing import filepath
+from testing import filepath
 
 
 def pil_loader(file_object):

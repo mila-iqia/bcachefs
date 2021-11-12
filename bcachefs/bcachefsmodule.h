@@ -8,7 +8,7 @@
 
 #define  PY_SSIZE_T_CLEAN     /* So we get Py_ssize_t args. */
 #include <Python.h>           /* Because of "reasons", the Python header must be first. */
-#include "bcachefs.h"
+#include "bcachefs_iterator.h"
 
 /* Type Definitions and Forward Declarations */
 typedef struct {
@@ -20,7 +20,7 @@ static PyTypeObject PyBcachefsType;
 typedef struct {
     PyObject_HEAD
     PyBcachefs *_pyfs;
-    Bcachefs_iterator _iter;
+    Bcachefs_iterator *_iter;
 } PyBcachefs_iterator;
 static PyTypeObject PyBcachefs_iteratorType;
 

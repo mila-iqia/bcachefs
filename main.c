@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "bcachefs/bcachefs.h"
+#include "bcachefs/bcachefs_iterator.h"
 
 #define MINI "testdata/mini_bcachefs.img"
 
@@ -36,68 +36,79 @@ int main()
     benz_print_hex(((const uint8_t*)&jset_magic) + 4, 4);
     printf("\n");
     printf("jset_magic:%llu\n", jset_magic);
+    uint64_t max_inode = 0;
 
-   
+    // Inode (needs to be first to know the max inode)
+    // -----------------------------------------------------------------------------
+    {
+        Bcachefs_iterator *bchfs_iter = Bcachefs_iter(&bchfs, BTREE_ID_inodes);
+        bch_val = Bcachefs_iter_next(&bchfs, bchfs_iter);
+        for (int i = 0; bch_val; ++i, bch_val = Bcachefs_iter_next(&bchfs, bchfs_iter))
+        {
+            Bcachefs_inode inode = Bcachefs_iter_make_inode(&bchfs, bchfs_iter);
+            printf("inode  %3d: i:%llu, s:%10llu, h:%20llu\n", i, inode.inode, inode.size, inode.hash_seed);
+            if (max_inode < inode.inode)
+            {
+                max_inode = inode.inode;
+            }
+        }
+        Bcachefs_iter_fini(&bchfs, bchfs_iter);
+        free(bchfs_iter);
+
+        for (int i = 0, ino = BCACHEFS_ROOT_INO; ino <= max_inode; ++i, ++ino)
+        {
+            Bcachefs_inode inode = Bcachefs_find_inode(&bchfs, ino);
+            printf("inode  %3d: i:%llu, s:%10llu, h:%20llu\n", i, inode.inode, inode.size, inode.hash_seed);
+        }
+    }
+
     // Extent
     // ----------------------------------------------------------------------------
     {
-        Bcachefs_iterator bchfs_iter = {0};
-        Bcachefs_iter(&bchfs, &bchfs_iter, BTREE_ID_extents);
-        bch_val = Bcachefs_iter_next(&bchfs, &bchfs_iter);
+        Bcachefs_iterator *bchfs_iter = Bcachefs_iter(&bchfs, BTREE_ID_extents);
+        bch_val = Bcachefs_iter_next(&bchfs, bchfs_iter);
         bch_btree_ptr = NULL;
-        int i = 0;
-
-        while (bch_val)
+        for (int i = 0; bch_val; ++i, bch_val = Bcachefs_iter_next(&bchfs, bchfs_iter))
         {
-            if (bch_val == NULL)
-            {         
-                continue;
-            }
-
-            Bcachefs_extent extent = Bcachefs_iter_make_extent(&bchfs, &bchfs_iter);
+            Bcachefs_extent extent = Bcachefs_iter_make_extent(&bchfs, bchfs_iter);
             printf("extent %3d: i:%llu fo:%10llu, o:%10llu, s:%10llu\n", 
                 i,
                 extent.inode, 
                 extent.file_offset, 
                 extent.offset, 
                 extent.size);
-
-            bch_val = Bcachefs_iter_next(&bchfs, &bchfs_iter);
-            i += 1;
         }
-        Bcachefs_iter_fini(&bchfs, &bchfs_iter);
-    }
+        Bcachefs_iter_fini(&bchfs, bchfs_iter);
+        free(bchfs_iter);
 
-    // Inode
-    // -----------------------------------------------------------------------------
-    {
-        Bcachefs_iterator bchfs_iter = {0};
-        Bcachefs_iter(&bchfs, &bchfs_iter, BTREE_ID_inodes);
-        bch_val = Bcachefs_iter_next(&bchfs, &bchfs_iter);
-        int i = 0;
-        while (bch_val)
+        Bcachefs_extent extent = {0};
+        for (int i = 0, ino = BCACHEFS_ROOT_INO; ino <= max_inode; ++i, ++ino)
         {
-            Bcachefs_inode inode = Bcachefs_iter_make_inode(&bchfs, &bchfs_iter);
-            printf("inode %3d: i:%lu, s:%lu\n", i, inode.inode, inode.size);
-
-            i += 1;
-            bch_val = Bcachefs_iter_next(&bchfs, &bchfs_iter);
+            do
+            {
+                extent = Bcachefs_find_extent(&bchfs, ino, extent.file_offset + extent.size);
+                printf("extent %4d: i:%llu fo:%10llu, o:%10llu, s:%10llu, t:%10llu\n", 
+                    ino,
+                    extent.inode, 
+                    extent.file_offset, 
+                    extent.offset, 
+                    extent.size,
+                    extent.file_offset + extent.size);
+            } while (extent.size);
         }
-        Bcachefs_iter_fini(&bchfs, &bchfs_iter);
     }
-    
+
     // Dirent
     // -----------------------------------------------------------------------------
     {
-        Bcachefs_iterator bchfs_iter = {0};
-        Bcachefs_iter(&bchfs, &bchfs_iter, BTREE_ID_dirents);
-        bch_val = Bcachefs_iter_next(&bchfs, &bchfs_iter);
-        int i = 0;
-        while (bch_val)
+        Bcachefs_iterator *bchfs_iter = Bcachefs_iter(&bchfs, BTREE_ID_dirents);
+        bch_val = Bcachefs_iter_next(&bchfs, bchfs_iter);
+        for (int i = 0; bch_val; ++i, bch_val = Bcachefs_iter_next(&bchfs, bchfs_iter))
         {
-            Bcachefs_dirent dirent = Bcachefs_iter_make_dirent(&bchfs, &bchfs_iter);
+            Bcachefs_dirent dirent = Bcachefs_iter_make_dirent(&bchfs, bchfs_iter);
             char fname[30] = {0};
             memcpy(fname, dirent.name, dirent.name_len);
+            fname[dirent.name_len] = '\0';
 
             printf("dirent %3d: p:%10llu, i:%10llu, t:%10u, %s\n",
                 i,
@@ -106,12 +117,36 @@ int main()
                 dirent.type,
                 fname);
 
-            bch_val = Bcachefs_iter_next(&bchfs, &bchfs_iter);
-            i += 1;
+            dirent = Bcachefs_find_dirent(&bchfs, dirent.parent_inode, 0, dirent.name, dirent.name_len);
+            if (dirent.name_len)
+            {
+                memcpy(fname, dirent.name, dirent.name_len);
+            }
+            fname[dirent.name_len] = '\0';
+            printf("dirent %3d: p:%10llu, i:%10llu, t:%10u, %s\n",
+                i,
+                dirent.parent_inode,
+                dirent.inode,
+                dirent.type,
+                fname);
         }
-        Bcachefs_iter_fini(&bchfs, &bchfs_iter);
+        Bcachefs_iter_fini(&bchfs, bchfs_iter);
+        free(bchfs_iter);
+
+        char fname[30] = {0};
+        Bcachefs_dirent dirent = Bcachefs_find_dirent(&bchfs, 0, 0, (const void*)"", 1);
+        if (strlen((const void*)dirent.name))
+        {
+            strcpy(fname, (const void*)dirent.name);
+        }
+        fname[dirent.name_len] = '\0';
+        printf("dirent %3d: p:%10llu, i:%10llu, t:%10u, %s\n",
+            0,
+            dirent.parent_inode,
+            dirent.inode,
+            dirent.type,
+            fname);
     }
 
-    Bcachefs_fini(&bchfs);
-    return 0;
+    return !Bcachefs_close(&bchfs);
 }
