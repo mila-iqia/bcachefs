@@ -533,9 +533,9 @@ const struct bch_val *Bcachefs_iter_next(const Bcachefs *this, Bcachefs_iterator
     do
     {
         iter->bkey = benz_bch_next_bkey(iter->bset, iter->bkey, KEY_TYPE_MAX);
+        iter->bkey = bkey = iter->bkey == bkey ? NULL : iter->bkey;
         bch_val = _Bcachefs_iter_next_bch_val(iter->bkey, &iter->btree_node->format);
     } while (iter->bkey && bch_val == NULL);
-    bkey = iter->bkey;
     switch ((int)iter->type)
     {
     case BTREE_ID_extents:
