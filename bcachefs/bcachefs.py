@@ -189,9 +189,15 @@ class Bcachefs:
         # and this implementation assumes that the last ones should be the
         # correct ones.
         unique_extent_list = []
-        for ent in sorted(inode_extents, key=lambda _: _.file_offset):
-            if ent not in unique_extent_list[-1:]:
+        for ent in reversed(sorted(inode_extents, key=lambda _: _.file_offset)):
+            if not unique_extent_list:
                 unique_extent_list.append(ent)
+            elif ent.file_offset + ent.size == unique_extent_list[0].file_offset:
+                if ent.offset + ent.size == unique_extent_list[0].offset:
+                    ent = Extent(ent.inode, ent.file_offset, ent.offset,
+                            ent.size + unique_extent_list[0].size)
+                    unique_extent_list.pop(0)
+                unique_extent_list.insert(0, ent)
         return unique_extent_list
 
     @staticmethod
