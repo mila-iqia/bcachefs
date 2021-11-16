@@ -1,6 +1,7 @@
 import os
 import io
 import math
+import zipfile
 from hashlib import sha256
 
 import pytest
@@ -21,11 +22,9 @@ MINI = "testdata/mini_bcachefs.img"
 FILE = "n02033041/n02033041_3834.JPEG"
 
 
-with open(
-    filepath(os.path.join("testdata/mini_content", FILE)), "rb"
-) as original:
+with zipfile.ZipFile(filepath("testdata/mini_content.zip"), "r") as zipf:
     sha = sha256()
-    original_data = original.read()
+    original_data = zipf.read(os.path.join("mini_content", FILE))
     sha.update(original_data)
     original_hash = sha.digest()
 
