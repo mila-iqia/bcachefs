@@ -141,6 +141,16 @@ class Bcachefs:
                                        extent.file_offset+extent.size])
         return _bytes.data
 
+    def read_file_into(self, inode: [str, int], buffer: memoryview) -> memoryview:
+        if isinstance(inode, str):
+            inode = self.find_dirent(inode).inode
+        extents = self._extents_map[inode]
+        for extent in extents:
+            self._file.seek(extent.offset)
+            self._file.readinto(buffer[extent.file_offset:
+                                       extent.file_offset+extent.size])
+        return buffer
+
     def walk(self, top: str = None):
         if not top:
             top = self._pwd
