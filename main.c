@@ -4,7 +4,8 @@
 
 #include "bcachefs/bcachefs_iterator.h"
 
-#define MINI "testdata/mini_bcachefs.img"
+#define MINI "../testdata/mini_bcachefs.img"
+#define MANY "../testdata/many_bcachefs.img"
 
 
 int main()

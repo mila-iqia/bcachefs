@@ -131,6 +131,13 @@ int _Bcachefs_comp_bkey_lesser_than(struct bkey_local_buffer *buffer, struct bke
     return field < BKEY_NR_FIELDS && buffer->buffer[field] < reference->buffer[field];
 }
 
+int _Bcachefs_comp_bkey_lesseq_than(struct bkey_local_buffer *buffer, struct bkey_local_buffer *reference)
+{
+    enum bch_bkey_fields field = 0;
+    for (; field < BKEY_NR_FIELDS && buffer->buffer[field] == reference->buffer[field]; ++field) {}
+    return field == BKEY_NR_FIELDS || buffer->buffer[field] < reference->buffer[field];
+}
+
 const struct bkey* _Bcachefs_find_bkey(const Bcachefs *this, Bcachefs_iterator *iter, struct bkey_local_buffer *reference)
 {
     struct bkey_local_buffer bkey_value = {{0}};
@@ -141,7 +148,7 @@ const struct bkey* _Bcachefs_find_bkey(const Bcachefs *this, Bcachefs_iterator *
         do
         {
             bkey = benz_bch_next_bkey(iter->bset, bkey, KEY_TYPE_MAX);
-            if (bkey)
+            if (bkey && bkey->u64s)
             {
                 switch ((int)iter->type)
                 {
@@ -158,19 +165,12 @@ const struct bkey* _Bcachefs_find_bkey(const Bcachefs *this, Bcachefs_iterator *
             }
             else
             {
+                bkey = NULL;
                 bkey_value = (struct bkey_local_buffer){{0}};
             }
         } while (bkey && _Bcachefs_comp_bkey_lesser_than(&bkey_value, reference));
 
-        if (!memcmp(bkey_value.buffer, reference->buffer, sizeof(bkey_value.buffer)))
-        {
-            uint8_t key_u64s = bkey->format == KEY_FORMAT_LOCAL_BTREE ?
-                iter->btree_node->format.key_u64s : BKEY_U64s;
-            iter->bkey = bkey;
-            iter->bch_val = benz_bch_first_bch_val(bkey, key_u64s);
-            return bkey;
-        }
-        else if (bkey && bkey->type == KEY_TYPE_btree_ptr_v2)
+        if (bkey && bkey->type == KEY_TYPE_btree_ptr_v2)
         {
             uint8_t key_u64s = bkey->format == KEY_FORMAT_LOCAL_BTREE ?
                 iter->btree_node->format.key_u64s : BKEY_U64s;
@@ -185,7 +185,7 @@ const struct bkey* _Bcachefs_find_bkey(const Bcachefs *this, Bcachefs_iterator *
                 free(iter->next_it);
                 iter->next_it = NULL;
             }
-            if (_Bcachefs_comp_bkey_lesser_than(&bkey_value, reference) && !iter->next_it &&
+            if (_Bcachefs_comp_bkey_lesseq_than(&bkey_value, reference) && !iter->next_it &&
                     Bcachefs_next_iter(this, iter, btree_ptr))
             {
                 bkey = _Bcachefs_find_bkey(this, iter->next_it, reference);
@@ -194,6 +194,14 @@ const struct bkey* _Bcachefs_find_bkey(const Bcachefs *this, Bcachefs_iterator *
                     return bkey;
                 }
             }
+        }
+        else if (!memcmp(bkey_value.buffer, reference->buffer, sizeof(bkey_value.buffer)))
+        {
+            uint8_t key_u64s = bkey->format == KEY_FORMAT_LOCAL_BTREE ?
+                iter->btree_node->format.key_u64s : BKEY_U64s;
+            iter->bkey = bkey;
+            iter->bch_val = benz_bch_first_bch_val(bkey, key_u64s);
+            return bkey;
         }
     }
 
@@ -496,9 +504,9 @@ const struct bch_val *Bcachefs_iter_next(const Bcachefs *this, Bcachefs_iterator
     do
     {
         iter->bkey = benz_bch_next_bkey(iter->bset, iter->bkey, KEY_TYPE_MAX);
+        iter->bkey = bkey = iter->bkey == bkey ? NULL : iter->bkey;
         bch_val = _Bcachefs_iter_next_bch_val(iter->bkey, &iter->btree_node->format);
     } while (iter->bkey && bch_val == NULL);
-    bkey = iter->bkey;
     switch ((int)iter->type)
     {
     case BTREE_ID_extents:
@@ -595,6 +603,15 @@ Bcachefs_extent Bcachefs_iter_make_extent(const Bcachefs *this, Bcachefs_iterato
     const struct bkey_local_buffer buffer = benz_bch_parse_bkey_buffer(iter->bkey, &iter->btree_node->format, BKEY_NR_FIELDS);
     const struct bkey_local bkey_local = benz_bch_parse_bkey(iter->bkey, &buffer);
     const struct bkey *bkey = (const void*)&bkey_local;
+    switch (bkey->type)
+    {
+    case KEY_TYPE_extent:
+    case KEY_TYPE_inline_data:
+        break;
+    default:
+        return (Bcachefs_extent){0};
+    }
+
     Bcachefs_extent extent = {.inode = bkey->p.inode};
     benz_bch_file_offset_size(bkey, iter->bch_val, &extent.file_offset, &extent.offset, &extent.size);
     if (bkey->type == KEY_TYPE_inline_data)
@@ -619,6 +636,13 @@ Bcachefs_inode Bcachefs_iter_make_inode(const Bcachefs *this, Bcachefs_iterator 
     const struct bkey_local_buffer buffer = benz_bch_parse_bkey_buffer(bkey, &iter->btree_node->format, BKEY_NR_FIELDS);
     const struct bkey_local bkey_local = benz_bch_parse_bkey(bkey, &buffer);
     const struct bch_inode *bch_inode = (const void*)iter->bch_val;
+    switch (bkey->type)
+    {
+    case KEY_TYPE_inode:
+        break;
+    default:
+        return (Bcachefs_inode){0};
+    }
 
     const void *p_end = (const void*)((const uint8_t*)bkey + bkey->u64s * BCH_U64S_SIZE);
 
@@ -637,10 +661,19 @@ Bcachefs_dirent Bcachefs_iter_make_dirent(const Bcachefs *this, Bcachefs_iterato
     {
         iter = iter->next_it;
     }
+
     const struct bkey *bkey = iter->bkey;
     const struct bkey_local_buffer buffer = benz_bch_parse_bkey_buffer(bkey, &iter->btree_node->format, BKEY_NR_FIELDS);
     const struct bkey_local bkey_local = benz_bch_parse_bkey(bkey, &buffer);
     const struct bch_dirent *bch_dirent = (const void*)iter->bch_val;
+    switch (bkey->type)
+    {
+    case KEY_TYPE_dirent:
+        break;
+    default:
+        return (Bcachefs_dirent){0};
+    }
+
     const uint8_t name_len = strlen((const void*)bch_dirent->d_name);
     const uint8_t max_name_len = (const uint8_t*)bkey + bkey->u64s * BCH_U64S_SIZE - bch_dirent->d_name;
     return (Bcachefs_dirent){.parent_inode = bkey_local.p.inode,

@@ -59,25 +59,17 @@ NAME="${NAME}" \
 	TMP_DIR=${TMP_DIR}/ \
 	./mount.sh &
 
-sleep 10
+sleep 2
 
 echo
 echo "============================================"
 echo
 echo "Run the following commands in another shell:"
-echo -e "\\tpushd '${PWD}' && UNMOUNT=1 ./cp.sh . && popd || popd"
+echo -e "\\tpushd '${PWD}' && UNMOUNT=1 ./cp.sh . ; popd"
 echo
 echo "============================================"
 echo
 
-fg %1 >/dev/null && \
-	echo && \
-	echo "============================================" && \
-	echo && \
-	echo "Verifying filesystem ..." && \
-	echo && \
-	echo "============================================" && \
-	echo && \
-	singularity run -B "${NAME}":/bch/disk.img:rw bcachefs-tools.sif fsck /bch/disk.img
-
 popd >/dev/null
+
+fg %1 >/dev/null

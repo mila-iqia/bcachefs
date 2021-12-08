@@ -7,5 +7,4 @@ then
 fi
 
 cd /bch/mount/
-[ ${RM_FAILED} -eq 1 ] && [ -z "`grep ": FAILED" /bch/tmp/disk.img.md5sums.checksums`" ] || \
-	grep ": FAILED" /bch/tmp/disk.img.md5sums.checksums | sed "s|: FAILED||" | xargs rm
+[ ${RM_FAILED} -eq 1 ] && grep ": FAILED" /bch/tmp/disk.img.md5sums.checksums | sed "s|: FAILED||" | xargs rm
