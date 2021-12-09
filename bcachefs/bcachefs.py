@@ -464,7 +464,7 @@ class ZipFileLikeMixin(FilesystemMixin):
         """
 
         for root, _, files in self.walk():
-            for f in files:
+            for f in set(files):
                 yield os.path.join(root, f.name)
 
     def open(
@@ -574,7 +574,9 @@ class Bcachefs(ZipFileLikeMixin):
             yield dirent
 
     def find_extent(self, inode: int, file_offset: int) -> Extent:
-        extent = self._filesystem.find_extent(inode, file_offset)
+        extent = (
+            self._filesystem.find_extent(inode, file_offset) if inode else None
+        )
         return Extent(*extent) if extent else None
 
     def find_extents(self, inode: int) -> Generator[Extent, None, None]:
@@ -625,7 +627,7 @@ class Bcachefs(ZipFileLikeMixin):
             yield root
 
     def _walk(self, top: str, dirent: DirEnt):
-        ls = list(self.ls(dirent))
+        ls = set(self.ls(dirent))
         dirs = [ent for ent in ls if ent.is_dir]
         files = [ent for ent in ls if not ent.is_dir]
         yield top, dirs, files

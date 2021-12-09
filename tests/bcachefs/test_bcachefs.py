@@ -9,8 +9,9 @@ from testing import filepath
 
 
 MINI = "testdata/mini_bcachefs.img"
+MANY = "testdata/many_bcachefs.img"
 
-TEST_IMAGES = [MINI]
+TEST_IMAGES = [MINI, MANY]
 
 
 @pytest.mark.parametrize("image", TEST_IMAGES)
@@ -32,32 +33,41 @@ def test___enter__(image):
         assert fs.size > 0
 
 
-@pytest.mark.parametrize("image", TEST_IMAGES)
+@pytest.mark.parametrize("image", [MINI, MANY])
 def test___iter__(image):
     image = filepath(image)
     assert os.path.exists(image)
 
     with Bcachefs(image) as fs:
-        assert sorted([ent.name for ent in fs]) == [
-            "dir",
-            "file1",
-            "file2",
-            "lost+found",
-            "n02033041",
-            "n02033041_3834.JPEG",
-            "n02445715",
-            "n02445715_16523.JPEG",
-            "n04467665",
-            "n04467665_63788.JPEG",
-            "n04584207",
-            "n04584207_7936.JPEG",
-            "n09332890",
-            "n09332890_29876.JPEG",
-            "subdir",
-        ]
+        if image.endswith(MINI):
+            assert sorted([ent.name for ent in fs]) == [
+                "dir",
+                "file1",
+                "file2",
+                "lost+found",
+                "n02033041",
+                "n02033041_3834.JPEG",
+                "n02445715",
+                "n02445715_16523.JPEG",
+                "n04467665",
+                "n04467665_63788.JPEG",
+                "n04584207",
+                "n04584207_7936.JPEG",
+                "n09332890",
+                "n09332890_29876.JPEG",
+                "subdir",
+            ]
+        elif image.endswith(MANY):
+            assert len(set(fs)) == (
+                # hardlinks + dirs  + 0 (original file) + lost+found
+                1500 * 25
+                + 25
+                + 1
+                + 1
+            )
 
 
-@pytest.mark.parametrize("image", TEST_IMAGES)
+@pytest.mark.parametrize("image", [MINI])
 def test_find_dirent(image):
     image = filepath(image)
     assert os.path.exists(image)
@@ -81,7 +91,7 @@ def test_find_dirent(image):
         assert subdir_dirent.name == "subdir"
 
 
-@pytest.mark.parametrize("image", TEST_IMAGES)
+@pytest.mark.parametrize("image", [MINI])
 def test_ls(image):
     image = filepath(image)
     assert os.path.exists(image)
@@ -111,15 +121,24 @@ def test_read(image):
     assert os.path.exists(image)
 
     with Bcachefs(image) as fs:
-        inode = fs.find_dirent("file1").inode
-        assert bytes(fs.read(inode)) == b"File content 1\n"
+        if image.endswith(MINI):
+            inode = fs.find_dirent("file1").inode
+            assert bytes(fs.read(inode)) == b"File content 1\n"
 
-        inode = fs.find_dirent("dir/subdir/file2").inode
-        assert fs.read(inode) == b"File content 2\n"
-        assert bytes(fs.read("dir/subdir/file2")) == b"File content 2\n"
+            inode = fs.find_dirent("dir/subdir/file2").inode
+            assert fs.read(inode) == b"File content 2\n"
+            assert bytes(fs.read("dir/subdir/file2")) == b"File content 2\n"
+        elif image.endswith(MANY):
+            f0 = fs.read("0")
+            assert f0 == b"test content\n"
+
+            for ent in set(fs):
+                if ent.is_dir:
+                    continue
+                assert fs.read(ent.inode) == f0
 
 
-@pytest.mark.parametrize("image", TEST_IMAGES)
+@pytest.mark.parametrize("image", [MINI])
 def test_file_size(image):
     image = filepath(image)
     assert os.path.exists(image)
@@ -139,7 +158,7 @@ def test_file_size(image):
         ), "sum of extends is equal to file_size (minus the null character)"
 
 
-@pytest.mark.parametrize("image", TEST_IMAGES)
+@pytest.mark.parametrize("image", [MINI])
 def test_cd(image):
     image = filepath(image)
     assert os.path.exists(image)
@@ -150,7 +169,7 @@ def test_cd(image):
         assert cursor.pwd == "dir/subdir"
 
 
-@pytest.mark.parametrize("image", TEST_IMAGES)
+@pytest.mark.parametrize("image", [MINI])
 def test_walk(image):
     image = filepath(image)
     assert os.path.exists(image)
@@ -173,7 +192,7 @@ def test_walk(image):
         assert dir_walk[1] == subdir_walk[0]
 
 
-@pytest.mark.parametrize("image", TEST_IMAGES)
+@pytest.mark.parametrize("image", [MINI])
 def test_cursor___iter__(image):
     image = filepath(image)
     assert os.path.exists(image)
@@ -187,7 +206,7 @@ def test_cursor___iter__(image):
         assert sorted([ent.name for ent in cursor]) == ["file2", "subdir"]
 
 
-@pytest.mark.parametrize("image", TEST_IMAGES)
+@pytest.mark.parametrize("image", [MINI])
 def test_cursor_find_dirent(image):
     image = filepath(image)
     assert os.path.exists(image)
@@ -195,7 +214,7 @@ def test_cursor_find_dirent(image):
         assert cursor.find_dirent("file2") == fs.find_dirent("dir/subdir/file2")
 
 
-@pytest.mark.parametrize("image", TEST_IMAGES)
+@pytest.mark.parametrize("image", [MINI])
 def test_cursor_ls(image):
     image = filepath(image)
     assert os.path.exists(image)
@@ -209,7 +228,7 @@ def test_cursor_ls(image):
         )
 
 
-@pytest.mark.parametrize("image", TEST_IMAGES)
+@pytest.mark.parametrize("image", [MINI])
 def test_cursor_walk(image):
     image = filepath(image)
     assert os.path.exists(image)
@@ -222,10 +241,10 @@ def test_cursor_walk(image):
             assert f1 == f2
 
 
-def test_namelist():
-    image = filepath(MINI)
+@pytest.mark.parametrize("image", [MINI])
+def test_namelist(image):
+    image = filepath(image)
     assert os.path.exists(image)
-
     with Bcachefs(image) as fs:
         assert sorted(fs.namelist()) == [
             "dir/subdir/file2",
@@ -243,13 +262,11 @@ def count_size(fs, name):
 
     coverage.process_startup()
 
-    with fs:
-
-        try:
-            with fs.open(name, "rb") as f:
-                return len(f.read())
-        except FileNotFoundError:
-            return 0
+    try:
+        with fs.open(name, "rb") as f:
+            return len(f.read())
+    except FileNotFoundError:
+        return 0
 
 
 @pytest.mark.parametrize("image", TEST_IMAGES)

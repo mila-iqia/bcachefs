@@ -2,6 +2,11 @@
 
 _CWD=${PWD}
 
+if [ -z "${CLEANUP}" ]
+then
+	CLEANUP=0
+fi
+
 pushd `dirname "${BASH_SOURCE[0]}"` >/dev/null
 _SCRIPT_DIR=`pwd -P`
 
@@ -11,17 +16,20 @@ PREFIX=many
 NAME=${PREFIX}_bcachefs.img
 SIZE=
 
+# Clean-up traces of previous data
+[[ ${CLEANUP} -eq 1 ]] && rm -rf .tmp/*
+
 # Create data
-rm -rf .tmp/*
 mkdir -p .tmp/${PREFIX}_content/
-echo "test content" > .tmp/${PREFIX}_content/0
+[[ -e ".tmp/${PREFIX}_content/0" ]] || echo "test content" > .tmp/${PREFIX}_content/0
 
 for i in {1..25}
 do
 	mkdir -p .tmp/${PREFIX}_content/$i/
 	for j in {1..1500}
 	do
-		ln .tmp/${PREFIX}_content/0 .tmp/${PREFIX}_content/$i/$(( ($i - 1) * 1500 + $j))
+		[[ -e ".tmp/${PREFIX}_content/$i/$(( ($i - 1) * 1500 + $j))" ]] || \
+			ln .tmp/${PREFIX}_content/0 .tmp/${PREFIX}_content/$i/$(( ($i - 1) * 1500 + $j))
 	done
 done
 

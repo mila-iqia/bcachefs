@@ -173,12 +173,20 @@ const struct bset *benz_bch_next_bset(const struct btree_node *p, const void *p_
             _cb += sizeof(*c) + c->u64s * BCH_U64S_SIZE;
 
             // bset starts at a blocksize
-            _cb += block_size - (uint64_t)_cb % block_size +
-                   // skip btree_node_entry csum
-                   sizeof(struct bch_csum);
+            _cb += block_size - (uint64_t)_cb % block_size;
 
             _cb += (uint64_t)p;
-            c = (const void*)_cb;
+
+            // Checksum is not supported yet so we expect it to be 0
+            if (!memcmp(_cb, &(struct bch_csum){0}, sizeof(struct bch_csum)))
+            {
+                // skip btree_node_entry csum
+                c = (const void*)(_cb + sizeof(struct bch_csum));
+            }
+            else
+            {
+                c = NULL;
+            }
         }
         if ((const void*)c >= p_end)
         {
