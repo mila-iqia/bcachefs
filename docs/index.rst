@@ -1,28 +1,35 @@
+########
 Bcachefs
-========
+########
 
-Bcachefs leverage the bcachefs_ filesystem technology to create readonly
-disk image optimized for reading.
+Bcachefs leverage the `bcachefs <bcachefs_url>`_ filesystem technology to
+create readonly disk image optimized for reading.
 
-.. _bcachefs: https://bcachefs.org/
+.. _bcachefs_url: https://bcachefs.org/
 
+
+********
 Features
-~~~~~~~~
+********
 
 * Parallel Filesystem friendly (Lustre, BeeGFS)
 * Multiprocessing friendly
 * up to 2x faster than HDF5
 
 
+*******
 Planned
-~~~~~~~
+*******
 
 * Encryption
 * Compression
+* Optimize IO using io_uring
+* Readonly mount using FUSE for data exploration
 
 
+*************
 Documentation
-~~~~~~~~~~~~~
+*************
 
 .. toctree::
 

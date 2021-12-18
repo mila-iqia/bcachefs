@@ -60,16 +60,13 @@ int Bcachefs_close(Bcachefs *this)
         free(this->_iter);
         this->_iter = NULL;
     }
-    if (this->sb)
-    {
-        free(this->sb);
-        this->sb = NULL;
-    }
     if (this->fp && !fclose(this->fp))
     {
         this->fp = NULL;
         this->size = 0;
     }
+    free(this->sb);
+    this->sb = NULL;
     return ret && this->fp == NULL && this->sb == NULL && this->_iter == NULL;
 }
 
@@ -433,16 +430,10 @@ int Bcachefs_iter_fini(const Bcachefs *this, Bcachefs_iterator *iter)
         free(iter->next_it);
         iter->next_it = NULL;
     }
-    if (iter->btree_node)
-    {
-        free(iter->btree_node);
-        iter->btree_node = NULL;
-    }
-    if (iter->_bsets)
-    {
-        free(iter->_bsets);
-        iter->_bsets = NULL;
-    }
+    free(iter->btree_node);
+    iter->btree_node = NULL;
+    free(iter->_bsets);
+    iter->_bsets = NULL;
     *iter = (Bcachefs_iterator){
         .type = BTREE_ID_NR,
         .btree_node = iter->btree_node,

@@ -1,263 +1,215 @@
 import os
-
-import pytest
 import multiprocessing as mp
 
-import bcachefs.bcachefs as bchfs
-from bcachefs import Bcachefs
+import numpy as np
+import pytest
+
+import bcachefs as bch
 from testing import filepath
 
 
 MINI = "testdata/mini_bcachefs.img"
 MANY = "testdata/many_bcachefs.img"
 
-TEST_IMAGES = [MINI, MANY]
+_TEST_IMAGES = [filepath(MINI), filepath(MANY)]
 
 
-@pytest.mark.parametrize("image", TEST_IMAGES)
-def test___enter__(image):
+@pytest.fixture(scope="module", params=[MINI, MANY])
+def filesystem(request) -> bch.Bcachefs:
+    image = request.param
+    assert os.path.exists(image)
+    with bch.mount(image) as bchfs:
+        yield bchfs
+
+
+@pytest.fixture(scope="module")
+def cursor(filesystem: bch.Bcachefs) -> bch.Cursor:
+    return filesystem.cd()
+
+
+@pytest.fixture(scope="module")
+def dir_cursor(filesystem: bch.Bcachefs) -> bch.Cursor:
+    for root, dirs, _ in filesystem.walk():
+        if dirs:
+            dirs.sort(key=lambda ent: ent.inode)
+            # skip lost+found
+            return filesystem.cd(os.path.join(root, str(dirs[1])))
+
+
+@pytest.fixture(params=["filesystem", "cursor"])
+def bchfs(filesystem, cursor, request) -> bch.Bcachefs:
+    filesystem, cursor
+    kwargs = {**locals()}
+    return kwargs[request.param]
+
+
+@pytest.fixture(autouse=True)
+def skip_if_not_image(request, bchfs: bch.Bcachefs):
+    images_only = request.node.get_closest_marker("images_only")
+    if images_only and bchfs.filename not in images_only.args[0]:
+        pytest.skip(f"{images_only.args[0]} test only")
+
+
+@pytest.mark.parametrize("image", _TEST_IMAGES)
+def test_mount(image):
     image = filepath(image)
     assert os.path.exists(image)
 
-    fs = Bcachefs(image)
-    assert not fs.closed
-    assert fs.size > 0
-    with fs:
-        assert not fs.closed
-        assert fs.size > 0
-    assert fs.closed
-    assert fs.size is None
+    bchfs = bch.mount(image)
+    assert not bchfs.unmounted
+    assert list(bchfs)
+    bchfs.umount()
+    assert bchfs.unmounted
+    assert not list(bchfs)
 
-    with Bcachefs(image) as fs:
-        assert not fs.closed
-        assert fs.size > 0
+    with bch.mount(image) as bchfs:
+        assert not bchfs.unmounted
+        assert list(bchfs)
 
 
-@pytest.mark.parametrize("image", [MINI, MANY])
-def test___iter__(image):
-    image = filepath(image)
-    assert os.path.exists(image)
-
-    with Bcachefs(image) as fs:
-        if image.endswith(MINI):
-            assert sorted([ent.name for ent in fs]) == [
-                "dir",
-                "file1",
-                "file2",
-                "lost+found",
-                "n02033041",
-                "n02033041_3834.JPEG",
-                "n02445715",
-                "n02445715_16523.JPEG",
-                "n04467665",
-                "n04467665_63788.JPEG",
-                "n04584207",
-                "n04584207_7936.JPEG",
-                "n09332890",
-                "n09332890_29876.JPEG",
-                "subdir",
-            ]
-        elif image.endswith(MANY):
-            assert len(set(fs)) == (
-                # hardlinks + dirs  + 0 (original file) + lost+found
-                1500 * 25
-                + 25
-                + 1
-                + 1
-            )
-
-
-@pytest.mark.parametrize("image", [MINI])
-def test_find_dirent(image):
-    image = filepath(image)
-    assert os.path.exists(image)
-
-    with Bcachefs(image) as fs:
-        dirent = fs.find_dirent("/")
-        assert dirent.parent_inode == 4096
-        assert dirent.inode == 4096
-        assert dirent.type == bchfs.DIR_TYPE
-        assert dirent.name == ""
-        assert dirent == bchfs.ROOT_DIRENT
-
-        dir_dirent = fs.find_dirent("/dir")
-        assert dir_dirent.parent_inode == bchfs.ROOT_DIRENT.inode
-        assert dir_dirent.type == bchfs.DIR_TYPE
-        assert dir_dirent.name == "dir"
-
-        subdir_dirent = fs.find_dirent("/dir/subdir")
-        assert subdir_dirent.parent_inode == dir_dirent.inode
-        assert subdir_dirent.type == bchfs.DIR_TYPE
-        assert subdir_dirent.name == "subdir"
-
-
-@pytest.mark.parametrize("image", [MINI])
-def test_ls(image):
-    image = filepath(image)
-    assert os.path.exists(image)
-
-    with Bcachefs(image) as fs:
-        ls = [e.name for e in fs.ls()]
-        ls.sort()
-        assert ls == [
+def test___iter__(bchfs: bch.Bcachefs):
+    if bchfs.filename.endswith(MINI):
+        assert sorted([str(ent) for ent in bchfs]) == [
             "dir",
             "file1",
+            "file2",
             "lost+found",
             "n02033041",
+            "n02033041_3834.JPEG",
             "n02445715",
+            "n02445715_16523.JPEG",
             "n04467665",
+            "n04467665_63788.JPEG",
             "n04584207",
+            "n04584207_7936.JPEG",
             "n09332890",
+            "n09332890_29876.JPEG",
+            "subdir",
         ]
-        ls = [e.name for e in fs.ls("/dir")]
-        assert ls == ["subdir"]
-        ls = [e.name for e in fs.ls("/n04467665")]
-        assert ls == ["n04467665_63788.JPEG"]
+    elif bchfs.filename.endswith(MANY):
+        assert len(set(bchfs)) == (
+            # hardlinks + dirs  + 0 (original file) + lost+found
+            1500 * 25
+            + 25
+            + 1
+            + 1
+        )
 
 
-@pytest.mark.parametrize("image", TEST_IMAGES)
-def test_read(image):
-    image = filepath(image)
-    assert os.path.exists(image)
-
-    with Bcachefs(image) as fs:
-        if image.endswith(MINI):
-            inode = fs.find_dirent("file1").inode
-            assert bytes(fs.read(inode)) == b"File content 1\n"
-
-            inode = fs.find_dirent("dir/subdir/file2").inode
-            assert fs.read(inode) == b"File content 2\n"
-            assert bytes(fs.read("dir/subdir/file2")) == b"File content 2\n"
-        elif image.endswith(MANY):
-            f0 = fs.read("0")
-            assert f0 == b"test content\n"
-
-            for ent in set(fs):
-                if ent.is_dir:
-                    continue
-                assert fs.read(ent.inode) == f0
+@pytest.mark.images_only([MINI])
+def test_scandir(bchfs: bch.Bcachefs):
+    ls = [str(ent) for ent in bchfs.scandir()]
+    assert sorted(ls) == [
+        "dir",
+        "file1",
+        "lost+found",
+        "n02033041",
+        "n02445715",
+        "n04467665",
+        "n04584207",
+        "n09332890",
+    ]
+    ls = [str(ent) for ent in bchfs.scandir("/dir")]
+    assert ls == ["subdir"]
+    ls = [str(ent) for ent in bchfs.scandir("/n04467665")]
+    assert ls == ["n04467665_63788.JPEG"]
 
 
-@pytest.mark.parametrize("image", [MINI])
-def test_file_size(image):
-    image = filepath(image)
-    assert os.path.exists(image)
+def test_read(bchfs: bch.Bcachefs):
+    if bchfs.filename.endswith(MINI):
+        assert bchfs.read("file1") == b"File content 1\n"
+        assert bchfs.read("dir/subdir/file2") == b"File content 2\n"
+    elif bchfs.filename.endswith(MANY):
+        f0 = bchfs.read("0")
+        assert f0 == b"test content\n"
 
-    with Bcachefs(image) as fs:
-        inode = fs.find_dirent("file1").inode
-
-        file_size = fs.find_inode(inode).size
-
-        extents = fs.find_extents(inode)
-        size_check = 0
-        for extent in extents:
-            size_check += extent.size
-
-        assert (
-            size_check - 1 == file_size
-        ), "sum of extends is equal to file_size (minus the null character)"
+        for ent in set(bchfs):
+            if ent.is_dir:
+                continue
+            assert bchfs.read(ent) == f0
 
 
-@pytest.mark.parametrize("image", [MINI])
-def test_cd(image):
-    image = filepath(image)
-    assert os.path.exists(image)
+def test_readinto(bchfs: bch.Bcachefs):
+    buffer = np.empty(20, dtype="<u1")
+    buffer = memoryview(buffer)
+    if bchfs.filename.endswith(MINI):
+        _len = bchfs.readinto("file1", buffer)
+        assert _len == len(b"File content 1\n")
+        assert buffer[:_len] == b"File content 1\n"
+        _len = bchfs.readinto("dir/subdir/file2", buffer)
+        assert _len == len(b"File content 2\n")
+        assert buffer[:_len] == b"File content 2\n"
+    elif bchfs.filename.endswith(MANY):
+        f0 = bchfs.read("0")
+        assert f0 == b"test content\n"
 
-    with Bcachefs(image).cd() as cursor:
-        assert cursor.pwd == "/"
-    with Bcachefs(image).cd("dir/subdir") as cursor:
+        for ent in set(bchfs):
+            if ent.is_dir:
+                continue
+            _len = bchfs.readinto(ent.inode, buffer)
+            assert _len == len(f0)
+            assert buffer[:_len] == f0
+
+
+@pytest.mark.images_only([MINI])
+def test_cd(bchfs: bch.Bcachefs):
+    with bchfs.cd() as cursor:
+        assert cursor.pwd == ""
+    with bchfs.cd("dir/subdir") as cursor:
         assert cursor.pwd == "dir/subdir"
+        with cursor.cd() as c:
+            assert c.pwd == ""
+        with cursor.cd("/") as c:
+            assert c.pwd == ""
 
 
-@pytest.mark.parametrize("image", [MINI])
-def test_walk(image):
-    image = filepath(image)
-    assert os.path.exists(image)
+@pytest.mark.images_only([MINI])
+def test_walk(bchfs: bch.Bcachefs):
+    subdir_walk = list(bchfs.walk("dir/subdir"))
+    assert len(subdir_walk) == 1
 
-    with Bcachefs(image) as fs:
-        subdir_walk = list(fs.walk("dir/subdir"))
-        assert len(subdir_walk) == 1
+    _, subdir_dirnames, subdir_filenames = subdir_walk[0]
+    subdir_filenames = [str(f) for f in subdir_filenames]
+    assert len(subdir_dirnames) == 0
+    assert subdir_filenames == ["file2"]
 
-        _, subdir_dirnames, subdir_filenames = subdir_walk[0]
-        subdir_filenames = [f.name for f in subdir_filenames]
-        assert len(subdir_dirnames) == 0
-        assert subdir_filenames == ["file2"]
+    dir_walk = list(bchfs.walk("dir"))
+    _, dir_dirnames, dir_filenames = dir_walk[0]
+    dir_dirnames = [str(d) for d in dir_dirnames]
+    assert dir_dirnames == ["subdir"]
+    assert len(dir_filenames) == 0
 
-        dir_walk = list(fs.walk("dir"))
-        _, dir_dirnames, dir_filenames = dir_walk[0]
-        dir_dirnames = [d.name for d in dir_dirnames]
-        assert dir_dirnames == ["subdir"]
-        assert len(dir_filenames) == 0
-
-        assert dir_walk[1] == subdir_walk[0]
+    assert dir_walk[1] == subdir_walk[0]
 
 
-@pytest.mark.parametrize("image", [MINI])
-def test_cursor___iter__(image):
-    image = filepath(image)
-    assert os.path.exists(image)
-
-    with Bcachefs(image) as fs, Bcachefs(image).cd() as cursor:
-        assert sorted([ent.name for ent in cursor]) == sorted(
-            [ent.name for ent in fs]
-        )
-
-    with Bcachefs(image) as fs, Bcachefs(image).cd("dir") as cursor:
-        assert sorted([ent.name for ent in cursor]) == ["file2", "subdir"]
-
-
-@pytest.mark.parametrize("image", [MINI])
-def test_cursor_find_dirent(image):
-    image = filepath(image)
-    assert os.path.exists(image)
-    with Bcachefs(image) as fs, Bcachefs(image).cd("dir/subdir") as cursor:
-        assert cursor.find_dirent("file2") == fs.find_dirent("dir/subdir/file2")
+def test_cursor___iter__(bchfs: bch.Bcachefs, dir_cursor: bch.Cursor):
+    dir_content = []
+    for _, d, f in bchfs.walk(dir_cursor.pwd):
+        dir_content.extend(d)
+        dir_content.extend(f)
+    assert sorted(dir_cursor, key=lambda ent: ent.inode) == sorted(
+        dir_content,
+        key=lambda ent: ent.inode,
+    )
+    assert sorted(
+        [ent for ent in dir_cursor.cd("/")], key=lambda ent: ent.inode
+    ) == sorted(set(bchfs), key=lambda ent: ent.inode)
 
 
-@pytest.mark.parametrize("image", [MINI])
-def test_cursor_ls(image):
-    image = filepath(image)
-    assert os.path.exists(image)
-    with Bcachefs(image) as fs, Bcachefs(image).cd() as cursor:
-        assert sorted(cursor.ls(), key=lambda i: i.inode) == sorted(
-            fs.ls(), key=lambda i: i.inode
-        )
-    with Bcachefs(image) as fs, Bcachefs(image).cd("dir/subdir") as cursor:
-        assert sorted(cursor.ls(), key=lambda i: i.inode) == sorted(
-            fs.ls("dir/subdir"), key=lambda i: i.inode
-        )
+@pytest.mark.images_only([MINI])
+def test_namelist(bchfs: bch.Bcachefs):
+    assert sorted(bchfs.namelist()) == [
+        "dir/subdir/file2",
+        "file1",
+        "n02033041/n02033041_3834.JPEG",
+        "n02445715/n02445715_16523.JPEG",
+        "n04467665/n04467665_63788.JPEG",
+        "n04584207/n04584207_7936.JPEG",
+        "n09332890/n09332890_29876.JPEG",
+    ]
 
 
-@pytest.mark.parametrize("image", [MINI])
-def test_cursor_walk(image):
-    image = filepath(image)
-    assert os.path.exists(image)
-    with Bcachefs(image) as fs, Bcachefs(image).cd("dir") as cursor:
-        for (r1, d1, f1), (r2, d2, f2) in zip(
-            cursor.walk("subdir"), fs.walk("dir/subdir")
-        ):
-            assert r2.endswith(r1)
-            assert d1 == d2
-            assert f1 == f2
-
-
-@pytest.mark.parametrize("image", [MINI])
-def test_namelist(image):
-    image = filepath(image)
-    assert os.path.exists(image)
-    with Bcachefs(image) as fs:
-        assert sorted(fs.namelist()) == [
-            "dir/subdir/file2",
-            "file1",
-            "n02033041/n02033041_3834.JPEG",
-            "n02445715/n02445715_16523.JPEG",
-            "n04467665/n04467665_63788.JPEG",
-            "n04584207/n04584207_7936.JPEG",
-            "n09332890/n09332890_29876.JPEG",
-        ]
-
-
-def count_size(fs, name):
+def _count_size(fs, name):
     import coverage
 
     coverage.process_startup()
@@ -269,16 +221,10 @@ def count_size(fs, name):
         return 0
 
 
-@pytest.mark.parametrize("image", TEST_IMAGES)
-def test_multiprocess(image):
+def test_multiprocess(bchfs):
+    files = bchfs.namelist()
 
-    image = filepath(image)
-    assert os.path.exists(image)
-
-    with Bcachefs(image) as fs:
-        files = fs.namelist()
-
-        with mp.Pool(4) as p:
-            sizes = p.starmap(count_size, [(fs, n) for n in files])
+    with mp.Pool(4) as p:
+        sizes = p.starmap(_count_size, [(bchfs, n) for n in files])
 
     assert sum(sizes) > 1

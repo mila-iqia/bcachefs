@@ -1,5 +1,22 @@
-Read images
-===========
+.. |pypi| image:: https://badge.fury.io/py/bcachefs.svg
+   :target: https://pypi.python.org/pypi/bcachefs
+   :alt: Current PyPi Version
+
+.. |codecov| image:: https://codecov.io/gh/mila-iqia/bcachefs/branch/master/graph/badge.svg
+   :target: https://codecov.io/gh/mila-iqia/bcachefs
+   :alt: Codecov Report
+
+.. |docs| image:: https://readthedocs.org/projects/docs/badge/?version=latest
+   :target: https://bcachefs.readthedocs.io/en/latest
+   :alt: Documentation Status
+
+|pypi| |codecov| |docs|
+
+########
+bcachefs
+########
+
+C implementation with Python 3.7+ bindings for Bcachefs
 
 .. code-block:: python
 
@@ -31,23 +48,3 @@ Read images
            with image.open(filename, "rb") as f:
                for line in f.lines():
                    print(line)
-
-
-Multiprocessing
----------------
-
-.. code-block:: python
-
-   import multiprocessing as mp
-
-   def _count_size(bchfs, entry):
-       with bchfs.open(entry, "rb") as f: 
-           return len(f.read()) 
-
-   # Using a cursor with entries cache
-   with bch.mount("disk.img").cd() as cursor:
-       for _, _, files in cursor.walk():
-           with mp.Pool(4) as p:
-               sizes = p.starmap(_count_size, [(cursor, ent) for ent in files])
-
-   size = sum(sizes)
