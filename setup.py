@@ -35,7 +35,23 @@ setup(
     version="0.1.11",
     author="Satya Ortiz-Gagné",
     description="Fast Disk Image for HPC",
-    url="",
+    long_description=open("README.rst").read(),
+    license="MIT",
+    url="https://github.com/mila-iqia/bcachefs",
+    classifiers=[
+        "Operating System :: POSIX",
+        "Operating System :: Unix",
+        "Programming Language :: C",
+        "Programming Language :: Python",
+        *[
+            f"Programming Language :: Python :: {v}"
+            for v in "3 3.7 3.8 3.9".split()
+        ],
+        "Programming Language :: Python :: 3 :: Only",
+        "Topic :: Software Development",
+        "Topic :: Software Development :: Libraries",
+        "Topic :: Software Development :: Libraries :: Python Modules",
+    ],
     packages=find_packages(),
     ext_modules=[bcachefs_module],
 )

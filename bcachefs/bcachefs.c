@@ -408,9 +408,10 @@ struct bch_sb *benz_bch_realloc_sb(struct bch_sb *sb, uint64_t size)
         size = benz_bch_get_sb_size(sb);
     }
     struct bch_sb *ret = realloc(sb, size);
-    if (ret == NULL && sb)
+    if (ret == NULL)
     {
         free(sb);
+        sb = NULL;
     }
     return ret;
 }

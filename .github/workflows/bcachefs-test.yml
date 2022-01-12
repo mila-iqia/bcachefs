@@ -42,25 +42,27 @@ jobs:
           (eval "$(conda shell.bash hook)" && \
             conda activate && \
             conda install --yes --freeze-installed git-annex=7.20190819)
-          python3 -m pip install -r requirements.txt
-          python3 -m pip install -r tests/requirements.txt
+          python3 -m pip install -r requirements.txt -r tests/requirements.txt
 
       - name: Install
         run: |
-          python3 setup.py -coverage develop
+          python3 -m pip install --global-option -coverage -ve .
 
       - name: Tests
         run: |
           (eval "$(conda shell.bash hook)" && \
             conda activate && \
-            git-annex get testdata/*)
-          coverage run --parallel-mode -m pytest tests/
+            git-annex get --fast testdata/*)
+          coverage run --parallel-mode -m pytest -vv
+
+      - name: Coverage
+        run: |
           coverage combine
           coverage report -m
-          coverage xml
-          gcovr -r . -x -o .coverage_c.xml
+          coverage xml --include bcachefs/'*' -o .coverage.xml
+          gcovr --filter bcachefs/ --print-summary --xml .coverage_c.xml
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v2
         with:
-          files: .coverage_c.xml,coverage.xml
+          files: ./.coverage_c.xml,./.coverage.xml

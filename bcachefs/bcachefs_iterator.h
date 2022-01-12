@@ -71,89 +71,112 @@ typedef struct {
     ._root_dirent = (Bcachefs_dirent){0} \
 }
 
-
-/*! @brief  Open a Bcachefs disk image for reading
+/*! @brief Open a Bcachefs disk image for reading
  *
- *  @param [out] this the bcachefs struct to use for the initialization
- *  @param [in] path the path to the image
+ *  @param [out] this Bcachefs struct to initialize
+ *  @param [in] path path to the image
  *
- *  @return 1 on success and 0 on failure
+ *  @return 1 on success, 0 on failure
  */
 int Bcachefs_open(Bcachefs *this, const char *path);
 
-
-/*! @brief close the Bcachefs disk image
+/*! @brief Close a Bcachefs disk image
  *
- *  @param [in] this the disk image to close
- *  @return 1 on success and 0 on failure
+ *  @param [in] this disk image to close
+ *
+ *  @return 1 on success, 0 on failure
  */
 int Bcachefs_close(Bcachefs *this);
 
-
-/*! @brief prepare a bcachefs iterator to go through a bcachefs btree
+/*! @brief Create a Bcachefs iterator to go through a Bcachefs btree
  *
- *  @param [in] this the disk image we want to iterate through
- *  @param [out] iter the iterator struct to initialize
- *  @param [in] type the btree type we want to iterate over
+ *  @param [in] this disk image
+ *  @param [in] type type of the btree to iterate over
  *
- *  @return 1 on success and 0 on failure
+ *  @return initialized iterator struct or `NULL` on failure
  */
 Bcachefs_iterator* Bcachefs_iter(const Bcachefs *this, enum btree_id type);
 
+/*! @brief Find and parse an extent descriptor of a file at a particular offset
+ *
+ *         The file offset needs to exist in the extents list
+ *
+ *  @param [in] this disk image
+ *  @param [in] inode inode of a file
+ *  @param [in] file_offset offset of a file extent
+ *
+ *  @return parsed `Bcachefs_extent` or a zeroed struct on failure
+ */
+Bcachefs_extent Bcachefs_find_extent(Bcachefs *this, uint64_t inode, uint64_t file_offset);
 
-/*! @brief fetch next value from the iterator
+/*! @brief Find and parse the inode informations of a file
  *
- *  @param [in] this the disk image we are iterating through
- *  @param [in] iter the iterator struct
+ *  @param [in] this disk image
+ *  @param [in] inode inode of a file
  *
- *  @return the next value or `NULL` if we reached the end
+ *  @return parsed `Bcachefs_inode` or a zeroed struct on failure
+ */
+Bcachefs_inode Bcachefs_find_inode(Bcachefs *this, uint64_t inode);
+
+/*! @brief Find and parse the dirent informations of a file
+ *
+ *  @param [in] this disk image
+ *  @param [in] parent_inode inode of the parent directory
+ *  @param [in] hash_seed hash seed of the parent directory or 0
+ *  @param [in] name name of the dirent to find
+ *  @param [in] len length of the name string
+ *
+ *  @return parsed `Bcachefs_inode` or a zeroed struct on failure
+ */
+Bcachefs_dirent Bcachefs_find_dirent(Bcachefs *this, uint64_t parent_inode, uint64_t hash_seed, const uint8_t *name, const uint8_t len);
+
+/*! @brief Fetch next value from an iterator
+ *
+ *  @param [in] this disk image
+ *  @param [in] iter a disk image's iterator struct
+ *
+ *  @return next `bch_val` or `NULL` if the end is reached 
+ *
+ *  @todo return a `bkey` instead of a `bch_val` to make this return value more useful
  */
 const struct bch_val *Bcachefs_iter_next(const Bcachefs *this, Bcachefs_iterator *iter);
 
-
-/*! @brief free all the resources allocated by the iterator
+/*! @brief Free the resources allocated by the iterator
  *
- *  @param [in] this the disk image we are iterating through
- *  @param [in] iter the iterator struct
+ *  @param [in] this disk image
+ *  @param [in] iter a disk image's iterator struct
  *
- *  @return 1 on success and 0 on failure
+ *  @return 1 on success, 0 on failure
  */
 int Bcachefs_iter_fini(const Bcachefs *this, Bcachefs_iterator *iter);
 
-
-/*! @brief extract extent information from a bch_val
+/*! @brief Extract extent descriptor from the current `bch_val` of an iterator
  *
- *  @param [in] this the disk image we are reading from
- *  @param [in] iter the iterator pointing to the value we want to extract
+ *  @param [in] this disk image
+ *  @param [in] iter a disk image's iterator struct
  *
- *  @return the extracted value
+ *  @return parsed `Bcachefs_extent` or a zeroed struct on failure
  */
 Bcachefs_extent Bcachefs_iter_make_extent(const Bcachefs *this, Bcachefs_iterator *iter);
 
-
-/*! @brief extract inode information from a bch_val
+/*! @brief Extract inode information from the current `bch_val` of an iterator
  *
- *  @param [in] this the disk image we are reading from
- *  @param [in] iter the iterator pointing to the value we want to extract
+ *  @param [in] this disk image
+ *  @param [in] iter a disk image's iterator struct
  *
- *  @return the extracted value
+ *  @return parsed `Bcachefs_inode` or a zeroed struct on failure
  */
 Bcachefs_inode Bcachefs_iter_make_inode(const Bcachefs *this, Bcachefs_iterator *iter);
 
-
-/*! @brief extract dirent information from a bch_val
+/*! @brief Extract dirent information from the current `bch_val` of an iterator
  *
  *  @param [in] this the disk image we are reading from
  *  @param [in] iter the iterator pointing to the value we want to extract
  *
- *  @return the extracted value
+ *  @return parsed `Bcachefs_dirent` or a zeroed struct on failure
  */
 Bcachefs_dirent Bcachefs_iter_make_dirent(const Bcachefs *this, Bcachefs_iterator *iter);
 
-
-Bcachefs_extent Bcachefs_find_extent(Bcachefs *this, uint64_t inode, uint64_t file_offset);
-Bcachefs_inode Bcachefs_find_inode(Bcachefs *this, uint64_t inode);
-Bcachefs_dirent Bcachefs_find_dirent(Bcachefs *this, uint64_t parent_inode, uint64_t hash_seed, const uint8_t *name, const uint8_t len);
 int Bcachefs_next_iter(const Bcachefs *this, Bcachefs_iterator *iter, const struct bch_btree_ptr_v2 *btree_ptr);
 int Bcachefs_iter_reinit(const Bcachefs *this, Bcachefs_iterator *iter, enum btree_id type);
 int Bcachefs_iter_minimal_copy(const Bcachefs *this, Bcachefs_iterator *iter, const Bcachefs_iterator *other);

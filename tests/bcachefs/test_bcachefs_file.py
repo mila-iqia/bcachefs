@@ -5,10 +5,9 @@ import zipfile
 from hashlib import sha256
 
 import pytest
-from PIL import Image, ImageFile, UnidentifiedImageError
+from PIL import Image
 
-import bcachefs.bcachefs as bchfs
-from bcachefs import Bcachefs
+import bcachefs as bch
 from testing import filepath
 
 
@@ -32,13 +31,13 @@ with zipfile.ZipFile(filepath("testdata/mini_content.zip"), "r") as zipf:
 def test_file_properties():
     image = filepath(MINI)
 
-    with Bcachefs(image) as fs:
+    with bch.mount(image) as fs:
         with fs.open(FILE) as saved:
             assert saved.readable == True
             assert saved.isatty == False
             assert saved.seekable == True
             assert saved.writable == False
-            assert saved.fileno() == fs.find_dirent(FILE).inode
+            assert saved.fileno() == fs._find_dirent(FILE).inode
             assert saved.closed == False
 
             with pytest.raises(io.UnsupportedOperation):
@@ -55,7 +54,7 @@ def test_file_readall():
     image = filepath(MINI)
     assert os.path.exists(image)
 
-    with Bcachefs(image) as fs:
+    with bch.mount(image) as fs:
         with fs.open(FILE) as saved:
             sha = sha256()
             sha.update(saved.readall())
@@ -70,7 +69,7 @@ def test_file_read1(size):
     assert os.path.exists(image)
 
     all_data = []
-    with Bcachefs(image) as fs:
+    with bch.mount(image) as fs:
         with fs.open(FILE) as saved:
             sha = sha256()
 
@@ -96,7 +95,7 @@ def test_file_readinto1(size):
     image = filepath(MINI)
     assert os.path.exists(image)
 
-    with Bcachefs(image) as fs:
+    with bch.mount(image) as fs:
         with fs.open(FILE) as saved:
             sha = sha256()
 
@@ -116,7 +115,7 @@ def test_file_seek(offset):
     image = filepath(MINI)
     assert os.path.exists(image)
 
-    with Bcachefs(image) as fs:
+    with bch.mount(image) as fs:
         with fs.open(FILE) as saved:
             saved.seek(offset)
             data = saved.read(offset)
@@ -131,7 +130,7 @@ def test_read_image():
     def no_seek(*args):
         raise io.UnsupportedOperation
 
-    with Bcachefs(image) as fs:
+    with bch.mount(image) as fs:
         with fs.open(FILE) as image_file:
             image_file.seek = no_seek
             image = pil_loader(image_file)
@@ -141,6 +140,6 @@ def test_read_image_with_seek():
     image = filepath(MINI)
     assert os.path.exists(image)
 
-    with Bcachefs(image) as fs:
+    with bch.mount(image) as fs:
         with fs.open(FILE) as image_file:
             image = pil_loader(image_file)
