@@ -54,4 +54,5 @@ setup(
     ],
     packages=find_packages(),
     ext_modules=[bcachefs_module],
+    install_requires=open("requirements.txt").read().split("\n"),
 )

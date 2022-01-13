@@ -1,0 +1,7 @@
+# Include headers files:
+include *.h requirements.txt
+exclude main.c
+
+# But exclude binaries, installed headers and other junk:
+prune *.egg-info/
+global-exclude __pycache__ *.py[cod] *.exe *.so *.o .DS_Store
