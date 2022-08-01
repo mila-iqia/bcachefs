@@ -316,6 +316,7 @@ Bcachefs_dirent Bcachefs_find_dirent(Bcachefs *this, uint64_t parent_inode, uint
 void _Bcachefs_iter_build_bsets_cache(const Bcachefs *this, Bcachefs_iterator *iter)
 {
     iter->_bsets = malloc(sizeof(struct bset*) * 8);
+    memset(iter->_bsets, 0, sizeof(struct bset*) * 8);
     iter->_bset = (void*)iter->_bsets;
     iter->_bsets_end = (void*)(iter->_bsets + 8);
     const struct bset *bset = NULL;
@@ -323,20 +324,26 @@ void _Bcachefs_iter_build_bsets_cache(const Bcachefs *this, Bcachefs_iterator *i
     const struct bset **swp = NULL;
     while ((bset = benz_bch_next_bset(iter->btree_node, btree_node_end, bset, this->sb)))
     {
-        *(iter->_bset++) = bset;
         if (iter->_bset == iter->_bsets_end)
         {
             swp = (void*)iter->_bsets;
             const uint32_t num = iter->_bsets_end - (const struct bset**)iter->_bsets;
             iter->_bsets = malloc(sizeof(struct bset*) * num * 2);
-            memcpy(iter->_bsets, swp, sizeof(struct bset*) * num);
             iter->_bset = (void*)(iter->_bsets + num);
             iter->_bsets_end = (void*)(iter->_bsets + num * 2);
+            memcpy(iter->_bsets, swp, sizeof(struct bset*) * num);
             free(swp);
             swp = NULL;
         }
+        *(iter->_bset++) = bset;
     }
     iter->_bsets_end = iter->_bset;
+
+    iter->_btree_ptrs = malloc(sizeof(struct bch_btree_ptr_v2*) * 128);
+    memset(iter->_btree_ptrs, 0, sizeof(struct bch_btree_ptr_v2*) * 128);
+    iter->_btree_ptrs_end = (void*)(iter->_btree_ptrs + 128);
+    iter->_btree_ptrs_first = iter->_btree_ptrs_end;
+    iter->_btree_ptr = iter->_btree_ptrs_end;
 }
 
 int Bcachefs_iter_reinit(const Bcachefs *this, Bcachefs_iterator *iter, enum btree_id type)
@@ -381,6 +388,32 @@ int Bcachefs_iter_reinit(const Bcachefs *this, Bcachefs_iterator *iter, enum btr
     return iter->jset_entry && iter->btree_node && iter->btree_ptr;
 }
 
+const uint8_t **_copy_and_allign_array_ptrs(const void **array, const uint8_t *array_ref, const uint8_t *new_ref, const uint32_t cnt)
+{
+    void **new_arr = NULL;
+    if (cnt)
+    {
+        new_arr = malloc(sizeof(const void*) * cnt);
+        memset(new_arr, 0, sizeof(const void*) * cnt);
+    }
+    else
+    {
+        new_arr = NULL;
+    }
+    memcpy(new_arr, array, sizeof(const void*) * cnt);
+    const void **new_arr_end = (const void**)(new_arr + cnt);
+    const void **new_arr_pos = (const void**)new_arr;
+    const int64_t ref_offset = new_ref - array_ref;
+    for (int i = 0; new_arr_pos < new_arr_end; ++i, ++new_arr_pos)
+    {
+        if (*new_arr_pos)
+        {
+            *new_arr_pos += ref_offset;
+        }
+    }
+    return new_arr;
+}
+
 int Bcachefs_iter_minimal_copy(const Bcachefs *this, Bcachefs_iterator *iter, const Bcachefs_iterator *other)
 {
     if (memcmp(iter, &BCACHEFS_ITERATOR_CLEAN, sizeof(Bcachefs_iterator)))
@@ -398,22 +431,17 @@ int Bcachefs_iter_minimal_copy(const Bcachefs *this, Bcachefs_iterator *iter, co
 
     iter->btree_node = benz_bch_malloc_btree_node(this->sb);
     memcpy(iter->btree_node, other->btree_node, benz_bch_get_btree_node_size(this->sb));
-    const uint32_t num = other->_bsets_end - (const struct bset**)other->_bsets;
-    if (num)
-    {
-        iter->_bsets = malloc(sizeof(struct bset*) * num);
-    }
-    else
-    {
-        iter->_bsets = NULL;
-    }
+
+    uint32_t num = other->_bsets_end - (const struct bset**)other->_bsets;
+    iter->_bsets = _copy_and_allign_array_ptrs(other->_bsets, other->btree_node, iter->btree_node, num);
     iter->_bsets_end = (const struct bset**)(iter->_bsets + num);
-    iter->_bset = (const struct bset**)iter->_bsets;
-    for (int i = 0; iter->_bset < iter->_bsets_end; ++i, ++iter->_bset)
-    {
-        const uint64_t offset = (const uint8_t*)other->_bsets[i] - (const uint8_t*)other->btree_node;
-        *iter->_bset = (const void*)((const uint8_t*)iter->btree_node + offset);
-    }
+    iter->_bset = iter->_bsets_end;
+
+    num = other->_btree_ptrs_end - (const struct bch_btree_ptr_v2**)other->_btree_ptrs;
+    iter->_btree_ptrs = _copy_and_allign_array_ptrs(other->_btree_ptrs, other->btree_node, iter->btree_node, num);
+    iter->_btree_ptrs_end = (const struct bch_btree_ptr_v2**)(iter->_btree_ptrs + num);
+    iter->_btree_ptrs_first = iter->_btree_ptrs + (other->_btree_ptrs_first - (const struct bch_btree_ptr_v2**)other->_btree_ptrs);
+    iter->_btree_ptr = iter->_btree_ptrs + (other->_btree_ptr - (const struct bch_btree_ptr_v2**)other->_btree_ptrs);
 
     return 1;
 }
@@ -434,14 +462,49 @@ int Bcachefs_iter_fini(const Bcachefs *this, Bcachefs_iterator *iter)
     iter->btree_node = NULL;
     free(iter->_bsets);
     iter->_bsets = NULL;
+    free(iter->_btree_ptrs);
+    iter->_btree_ptrs = NULL;
     *iter = (Bcachefs_iterator){
         .type = BTREE_ID_NR,
         .btree_node = iter->btree_node,
         .next_it = iter->next_it,
-        ._bsets = iter->_bsets
+        ._bsets = iter->_bsets,
+        ._btree_ptrs = iter->_btree_ptrs
     };
     return iter->next_it == NULL && iter->btree_node == NULL &&
-        iter->_bsets == NULL;
+        iter->_bsets == NULL && iter->_btree_ptrs == NULL;
+}
+
+void _Bcachefs_iter_append_bsets_btree_ptr(Bcachefs_iterator *iter, const struct bch_btree_ptr_v2 *btree_ptr)
+{
+    if (iter->_btree_ptrs_first == iter->_btree_ptrs)
+    {
+        const struct bch_btree_ptr_v2 **swp = (void*)iter->_btree_ptrs;;
+        const uint32_t num = iter->_btree_ptrs_end - (const struct bch_btree_ptr_v2**)iter->_btree_ptrs;
+        iter->_btree_ptrs = malloc(sizeof(struct bch_btree_ptr_v2*) * num * 2);
+        iter->_btree_ptrs_end = (void*)(iter->_btree_ptrs + num * 2);
+        iter->_btree_ptrs_first = iter->_btree_ptrs + num;
+        iter->_btree_ptr = iter->_btree_ptrs_end;
+        memcpy(iter->_btree_ptrs_first, swp, sizeof(struct bch_btree_ptr_v2*) * num);
+        free(swp);
+        swp = NULL;
+    }
+    // Reverse iteration of btrees as it is assumed that the last btree contains
+    // the most up to date bsets
+    *(--iter->_btree_ptrs_first) = btree_ptr;
+}
+
+const struct bch_btree_ptr_v2 *_Bcachefs_iter_next_bsets_btree_ptr(Bcachefs_iterator *iter)
+{
+    // Reverse iteration of btrees as it is assumed that the last btree contains
+    // the most up to date bkeys
+    --iter->_btree_ptr;
+    if (iter->_btree_ptr < (const struct bch_btree_ptr_v2**)iter->_btree_ptrs_first)
+    {
+        iter->_btree_ptr = iter->_btree_ptrs_end;
+        return NULL;
+    }
+    return *iter->_btree_ptr;
 }
 
 const struct bch_val *_Bcachefs_iter_next_bch_val(const struct bkey *bkey, const struct bkey_format *format)
@@ -490,7 +553,15 @@ const struct bch_val *Bcachefs_iter_next(const Bcachefs *this, Bcachefs_iterator
     if (iter->bset) {}
     else
     {
-        return NULL;
+        const struct bch_btree_ptr_v2 *btree_ptr = _Bcachefs_iter_next_bsets_btree_ptr(iter);
+        if (btree_ptr && Bcachefs_next_iter(this, iter, btree_ptr))
+        {
+            return Bcachefs_iter_next(this, iter);
+        }
+        else
+        {
+            return NULL;
+        }
     }
     do
     {
@@ -504,10 +575,9 @@ const struct bch_val *Bcachefs_iter_next(const Bcachefs *this, Bcachefs_iterator
     case BTREE_ID_inodes:
     case BTREE_ID_dirents:
         iter->bch_val = bch_val;
-        if (bch_val && bkey->type == KEY_TYPE_btree_ptr_v2 &&
-                Bcachefs_next_iter(this, iter, (const struct bch_btree_ptr_v2*)bch_val))
+        if (bch_val && bkey->type == KEY_TYPE_btree_ptr_v2)
         {
-            return Bcachefs_iter_next(this, iter);
+            _Bcachefs_iter_append_bsets_btree_ptr(iter, (const struct bch_btree_ptr_v2*)bch_val);
         }
         else if (bch_val)
         {
@@ -576,7 +646,7 @@ const struct bset *Bcachefs_iter_next_bset(const Bcachefs *this, Bcachefs_iterat
     --iter->_bset;
     if (iter->_bset < (const struct bset**)iter->_bsets)
     {
-        iter->_bset = iter->_bsets_end;
+        iter->_bset = (const struct bset**)(iter->_bsets - 1);
         return NULL;
     }
     return *iter->_bset;

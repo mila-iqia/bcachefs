@@ -257,6 +257,8 @@ struct bkey_local_buffer benz_bch_parse_bkey_buffer(const struct bkey *bkey, con
     uint64_t *value = buffer.buffer;
     if (bkey->format == KEY_FORMAT_LOCAL_BTREE)
     {
+        // Following bch_bkey_fields ordering, the last bytes of the bkey refers
+        // to BKEY_FIELD_INODE then moving back up to BKEY_FIELD_VERSION_LO
         const uint8_t *bytes = (const void*)bkey;
         bytes += format->key_u64s * BCH_U64S_SIZE;
         for (enum bch_bkey_fields i = 0; i < fields_cnt; ++i, ++value)

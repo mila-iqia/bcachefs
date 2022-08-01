@@ -256,7 +256,7 @@ static void PyBcachefs_iterator_dealloc(PyBcachefs_iterator* self)
  * @brief Slot tp_new
  */
 
-static PyObject* PyBcachefs_iterator_new(PyTypeObject* type, PyObject* args, PyObject* kwargs)
+static PyObject *PyBcachefs_iterator_new(PyTypeObject* type, PyObject* args, PyObject* kwargs)
 {
     (void)args;
     (void)kwargs;
@@ -272,20 +272,24 @@ static PyObject *PyBcachefs_iterator_next(PyBcachefs_iterator *self)
     const Bcachefs *fs = &self->_pyfs->_fs;
     Bcachefs_iterator *iter = self->_iter;
     const struct bch_val *bch_val = Bcachefs_iter_next(fs, iter);
+    while (iter->next_it)
+    {
+        iter = iter->next_it;
+    }
     if (bch_val && iter->type == BTREE_ID_extents)
     {
         Bcachefs_extent extent = Bcachefs_iter_make_extent(fs, iter);
-        return Py_BuildValue("KKKK", extent.inode, extent.file_offset, extent.offset, extent.size);
+        return Py_BuildValue("KKKKK", extent.inode, extent.file_offset, extent.offset, extent.size, (uint64_t)&iter);
     }
     else if (bch_val && iter->type == BTREE_ID_inodes)
     {
         Bcachefs_inode inode = Bcachefs_iter_make_inode(fs, iter);
-        return Py_BuildValue("KKK", inode.inode, inode.size, inode.hash_seed);
+        return Py_BuildValue("KKKK", inode.inode, inode.size, inode.hash_seed, (uint64_t)&iter);
     }
     else if (bch_val && iter->type == BTREE_ID_dirents)
     {
         Bcachefs_dirent dirent = Bcachefs_iter_make_dirent(fs, iter);
-        return Py_BuildValue("KKIU#", dirent.parent_inode, dirent.inode, (uint32_t)dirent.type, dirent.name, dirent.name_len);
+        return Py_BuildValue("KKIU#K", dirent.parent_inode, dirent.inode, (uint32_t)dirent.type, dirent.name, dirent.name_len, (uint64_t)&iter);
     }
 
     Py_INCREF(Py_None);

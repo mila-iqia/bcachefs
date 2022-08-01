@@ -873,16 +873,15 @@ class Cursor(ZipFileLikeMixin):
         inode_map = {}
 
         # Load all dirents
-        dirents = list(filesystem.dirents())
-        for dirent in dirents:
+        for dirent in filesystem.dirents():
             if dirent.is_dir:
                 self._inodes_ls.setdefault(dirent.inode, [])
 
-        for dirent in dirents:
+        for dirent in filesystem.dirents():
             self._inodes_ls[dirent.parent_inode].append(dirent)
             self._inodes_tree[(dirent.parent_inode, dirent.name)] = dirent
 
-        # Filter only files and directorys under self.pwd
+        # Filter out files and directorys not under self.pwd
         for _, dirs, files in self.walk(self._dirent):
             for d in dirs:
                 inodes_ls.setdefault(d.inode, [])
@@ -964,18 +963,33 @@ class BcachefsIter:
         self._iter: _Bcachefs_iterator = (
             fs.iter(t) if fs is not None else self._EmptyIter()
         )
+        self._bsets_iter_ptr: int = None
+        self._cache = set()
 
     def __iter__(self):
         return self
 
     def __next__(self):
-        item = self._iter.next()
-        if item is None:
-            raise StopIteration
-        return item
+        while True:
+            item = self._iter.next()
+            if item is None:
+                raise StopIteration
+            item, bsets_iter_ptr = item[:-1], item[-1]
+            if item not in self._cache:
+                break
+        # If the _bsets_iter_ptr is different, we moved to a new set of bsets
+        # and can clear the cache
+        if self._bsets_iter_ptr != bsets_iter_ptr:
+            self._cache.clear()
+            self._bsets_iter_ptr = bsets_iter_ptr
+        self._cache.add(item)
+        return self._make_item(item)
 
     def next_bset(self):
         return self._iter.next_bset()
+
+    def _make_item(self, item):
+        return item
 
 
 class BcachefsIterExtent(BcachefsIter):
@@ -985,7 +999,10 @@ class BcachefsIterExtent(BcachefsIter):
         super(BcachefsIterExtent, self).__init__(fs, EXTENT_TYPE)
 
     def __next__(self):
-        return Extent(*super(BcachefsIterExtent, self).__next__())
+        return super(BcachefsIterExtent, self).__next__()
+
+    def _make_item(self, item):
+        return Extent(*item)
 
 
 class BcachefsIterInode(BcachefsIter):
@@ -996,11 +1013,14 @@ class BcachefsIterInode(BcachefsIter):
         self._deleted = set()
 
     def __next__(self):
-        inode = Inode(*super(BcachefsIterInode, self).__next__())
+        inode = super(BcachefsIterInode, self).__next__()
         while not inode.hash_seed or inode.inode in self._deleted:
             self._deleted.add(inode.inode)
-            inode = Inode(*super(BcachefsIterInode, self).__next__())
+            inode = super(BcachefsIterInode, self).__next__()
         return inode
+
+    def _make_item(self, item):
+        return Inode(*item)
 
 
 class BcachefsIterDirEnt(BcachefsIter):
@@ -1011,11 +1031,14 @@ class BcachefsIterDirEnt(BcachefsIter):
         self._deleted = set()
 
     def __next__(self):
-        dirent = DirEnt(*super(BcachefsIterDirEnt, self).__next__())
+        dirent = super(BcachefsIterDirEnt, self).__next__()
         while (
             not dirent.inode
             or (dirent.parent_inode, dirent.name) in self._deleted
         ):
             self._deleted.add((dirent.parent_inode, dirent.name))
-            dirent = DirEnt(*super(BcachefsIterDirEnt, self).__next__())
+            dirent = super(BcachefsIterDirEnt, self).__next__()
         return dirent
+
+    def _make_item(self, item):
+        return DirEnt(*item)
