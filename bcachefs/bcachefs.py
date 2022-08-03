@@ -996,10 +996,10 @@ class BcachefsIterExtent(BcachefsIter):
     """Iterates over bcachefs extend btree"""
 
     def __init__(self, fs: _Bcachefs):
-        super(BcachefsIterExtent, self).__init__(fs, EXTENT_TYPE)
+        BcachefsIter.__init__(self, fs, EXTENT_TYPE)
 
-    def __next__(self):
-        return super(BcachefsIterExtent, self).__next__()
+    def _make_item(self, item):
+        return Extent(*item)
 
     def _make_item(self, item):
         return Extent(*item)
@@ -1009,14 +1009,14 @@ class BcachefsIterInode(BcachefsIter):
     """Iterates over bcachefs inode btree"""
 
     def __init__(self, fs: _Bcachefs):
-        super(BcachefsIterInode, self).__init__(fs, INODE_TYPE)
+        BcachefsIter.__init__(self, fs, INODE_TYPE)
         self._deleted = set()
 
     def __next__(self):
-        inode = super(BcachefsIterInode, self).__next__()
+        inode = BcachefsIter.__next__(self)
         while not inode.hash_seed or inode.inode in self._deleted:
             self._deleted.add(inode.inode)
-            inode = super(BcachefsIterInode, self).__next__()
+            inode = BcachefsIter.__next__(self)
         return inode
 
     def _make_item(self, item):
@@ -1027,17 +1027,17 @@ class BcachefsIterDirEnt(BcachefsIter):
     """Iterates over bcachefs dirent btree"""
 
     def __init__(self, fs: _Bcachefs):
-        super(BcachefsIterDirEnt, self).__init__(fs, DIRENT_TYPE)
+        BcachefsIter.__init__(self, fs, DIRENT_TYPE)
         self._deleted = set()
 
     def __next__(self):
-        dirent = super(BcachefsIterDirEnt, self).__next__()
+        dirent = BcachefsIter.__next__(self)
         while (
             not dirent.inode
             or (dirent.parent_inode, dirent.name) in self._deleted
         ):
             self._deleted.add((dirent.parent_inode, dirent.name))
-            dirent = super(BcachefsIterDirEnt, self).__next__()
+            dirent = BcachefsIter.__next__(self)
         return dirent
 
     def _make_item(self, item):
