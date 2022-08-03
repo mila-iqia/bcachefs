@@ -386,34 +386,53 @@ void _Bcachefs_iter_build_bsets_cache(const Bcachefs *this, Bcachefs_iterator *i
     // This is the pointer to the current canditate for next slot (lowest amongst all the bsets)
     const struct bkey **swp = NULL;
     const struct bkey *best = NULL;
+    const struct bkey *last = NULL;
 
-    // Set up all key pointers to the first "real" key in each bset
+    // Set up all key pointers to the first key in each bset
     for (cursor = bsets_end, kptr = kcursors_end; cursor >= bsets; --cursor, --kptr)
-        *kptr = _find_next_valid_key(*kptr, *cursor);
+        *kptr = benz_bch_next_bkey(*cursor, *kptr, KEY_TYPE_MAX);
 
     for (;;)
     {
         for (kptr = kcursors_end; kptr >= kcursors; --kptr)
         {
+            // skip over invalid keys (that are smaller than the last key we accepted)
+            uint32_t pos = (kptr - kcursors) / sizeof (struct bkey *);
+            if (last != NULL)
+            {
+                while (_bkey_packed_less(*kptr, last, &iter->btree_node->format)
+                {
+                    *kptr = benz_bch_next_bkey(bsets[bpos], *kptr, KEY_TYPE_MAX);
+                }
+            }
+
+            // Look for the smallest key that is left. Since we look
+            // from the most recent bset, a duplicate will use the
+            // most recent key
             if (best == NULL || _bkey_packed_less(*kptr, best, &iter->btree_node->format))
             {
                 best = *kptr;
-                bpos = (kptr - kcursors) / sizeof (struct bkey *);
+                bpos = pos;
             }
         }
         // This is the exit condition for the loop normally
         if (best == NULL) break;
 
+        last = best;
         // Update the cursor for the best key
-        kcursors[bpos] = _find_next_valid_key(kcursors[bpos], bsets[bpos]);
-        *next++ = best;
-        best = NULL;
-        // Grow the keys array if we reach the end
-        if (next == iter->keys + knum)
+        kcursors[bpos] = benz_bch_next_bkey(bsets[bpos], kcursors[bpos], KEY_TYPE_MAX);
+        // Record the key if it is valid
+        if (best->type != KEY_TYPE_DELETED && best->type != KEY_TYPE_HASH_WHITEOUT)
         {
-            knum *= 2;
-            iter->keys = realloc(iter->keys, sizeof(struct bkey *) * knum);
+            *next++ = best;
+            // Grow the keys array if we reached the end
+            if (next == iter->keys + knum)
+            {
+                knum *= 2;
+                iter->keys = realloc(iter->keys, sizeof(struct bkey *) * knum);
+            }
         }
+        best = NULL;
     }
     // Mark the end of the array
     *next++ = NULL;
