@@ -303,7 +303,8 @@ static PyObject *PyBcachefs_iterator_next_bset(PyBcachefs_iterator *self)
     {
         iter = iter->next_it;
     }
-    iter->bkey = NULL;
+    // XXX: This function should probably not be used anymore, I'm not sure
+    iter->pos = 0;
     iter->bch_val = NULL;
     Py_INCREF(Py_None);
     return Py_None;
