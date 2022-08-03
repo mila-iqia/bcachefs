@@ -1,6 +1,10 @@
 Read images
 ===========
 
+.. code-block:: bash
+
+   python3 -m pip install bcachefs
+
 .. code-block:: python
 
    import bcachefs as bch
