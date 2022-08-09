@@ -310,7 +310,8 @@ int _bkey_packed_less(const struct bkey *a, const struct bkey *b, const struct b
   {
       bytes_a -= fmt->bits_per_field[i] / 8;
       bytes_b -= fmt->bits_per_field[i] / 8;
-      if ((tmp = memcmp(bytes_a, bytes_b, fmt->bits_per_field[i] / 8)) != 0) break;
+      if ((tmp = (benz_uintXX_as_uint64(bytes_a, fmt->bits_per_field[i]) -
+                  benz_uintXX_as_uint64(bytes_b, fmt->bits_per_field[i]))) != 0) break;
   }
   int res = (i < BKEY_NR_FIELDS && tmp < 0);
 
@@ -319,15 +320,6 @@ int _bkey_packed_less(const struct bkey *a, const struct bkey *b, const struct b
   return res;
 }
 
-const struct bkey *_find_next_valid_key(const struct bkey *key, const struct bset *set) {
-  const struct bkey *res = key;
-    do
-    {
-        res = benz_bch_next_bkey(set, res, KEY_TYPE_MAX);
-        // I'm not sure if those are the right types to skip over
-    } while (res != NULL && (res->type == KEY_TYPE_deleted || res->type == KEY_TYPE_hash_whiteout));
-    return res;
-}
 void _Bcachefs_iter_build_bsets_cache(const Bcachefs *this, Bcachefs_iterator *iter)
 {
     // We first get all the bsets from the node
@@ -335,7 +327,7 @@ void _Bcachefs_iter_build_bsets_cache(const Bcachefs *this, Bcachefs_iterator *i
     const struct bset **bsets = malloc(sizeof(struct bset *) * num);
     const struct bset **cursor = bsets;
     const struct bset **bsets_end = NULL;
-    const struct bset *ptr;
+    const struct bset *ptr = NULL;
 
     const void *btree_node_end = (const uint8_t *)iter->btree_node + iter->btree_ptr->sectors_written * BCH_SECTOR_SIZE;
 
@@ -349,7 +341,10 @@ void _Bcachefs_iter_build_bsets_cache(const Bcachefs *this, Bcachefs_iterator *i
             cursor = (bsets + (num / 2));
         }
     }
-    num = (cursor - bsets) / sizeof(struct bset *);
+
+    // Because those are properly typed it will count the number of items, not bytes
+    num = cursor - bsets;
+
     bsets_end = cursor - 1;
 
     // Now we do a mergesort with all the bsets
@@ -360,7 +355,7 @@ void _Bcachefs_iter_build_bsets_cache(const Bcachefs *this, Bcachefs_iterator *i
     // These will be the pointer to the current bkey for all the sets
     iter->keys = calloc(num, sizeof(struct bkey *)); // an array of 1024 pointers to start
     const struct bkey **kcursors = calloc(num, sizeof (struct bkey *));
-    const struct bkey **kcursors_end = kcursors + num;
+    const struct bkey **kcursors_end = kcursors + (num - 1);
     // helper for iteration
     const struct bkey **kptr;
     // This is the pointer to the next slot in iter->keys
@@ -371,21 +366,25 @@ void _Bcachefs_iter_build_bsets_cache(const Bcachefs *this, Bcachefs_iterator *i
 
     // Set up all key pointers to the first key in each bset
     for (cursor = bsets_end, kptr = kcursors_end; cursor >= bsets; --cursor, --kptr)
-        *kptr = benz_bch_next_bkey(*cursor, *kptr, KEY_TYPE_MAX);
+        *kptr = benz_bch_next_bkey(*cursor, NULL, KEY_TYPE_MAX);
 
     for (;;)
     {
         for (kptr = kcursors_end; kptr >= kcursors; --kptr)
         {
+            if (*kptr == NULL) continue;  // we are at the end of that btree
             // skip over invalid keys (that are smaller than the last key we accepted)
-            uint32_t pos = (kptr - kcursors) / sizeof (struct bkey *);
+            uint32_t pos = kptr - kcursors;
             if (last != NULL)
             {
                 while (_bkey_packed_less(*kptr, last, &iter->btree_node->format))
                 {
                     *kptr = benz_bch_next_bkey(bsets[bpos], *kptr, KEY_TYPE_MAX);
+                    if (*kptr == NULL) break;
                 }
             }
+            // We've reached the end of the current bset
+            if (*kptr == NULL) continue;
 
             // Look for the smallest key that is left. Since we look
             // from the most recent bset, a duplicate will use the
@@ -417,12 +416,12 @@ void _Bcachefs_iter_build_bsets_cache(const Bcachefs *this, Bcachefs_iterator *i
     }
     // Mark the end of the array
     *next++ = NULL;
-    iter->num_keys = knum = (next - iter->keys) + 1;
+    iter->num_keys = knum = (next - iter->keys) - 1;
     iter->pos = 0;
     free(bsets);
 
     // Trim the allocation to size to avoid wasting memory
-    iter->keys = realloc(iter->keys, sizeof(struct bkey *) * knum);
+    iter->keys = realloc(iter->keys, sizeof(struct bkey *) * (knum + 1));
 }
 
 int Bcachefs_iter_reinit(const Bcachefs *this, Bcachefs_iterator *iter, enum btree_id type)
