@@ -301,13 +301,7 @@ int _bkey_packed_less(const struct bkey *a, const struct bkey *b, const struct b
     switch (a->format)
     {
     case KEY_FORMAT_LOCAL_BTREE:
-        ; // WTF??? This needs to be here or the var decl don't parse WTF???
-        struct bkey_local_buffer a_local = {{0}}, b_local = {{0}};
-        a_local = benz_bch_parse_bkey_buffer(a, fmt, BKEY_NR_FIELDS);
-        b_local = benz_bch_parse_bkey_buffer(b, fmt, BKEY_NR_FIELDS);
-        int ref_res = _Bcachefs_comp_bkey_lesser_than(&a_local, &b_local);
-        ; // WTF??? This needs to be here or the var decl don't parse WTF???
-        int64_t tmp = 0;
+        ; // WTF??? This needs to be here or the var decl won't parse WTF???
         const uint8_t *bytes_a = (const void *)a;
         const uint8_t *bytes_b = (const void *)b;
         enum bch_bkey_fields i;
@@ -318,12 +312,13 @@ int _bkey_packed_less(const struct bkey *a, const struct bkey *b, const struct b
         {
             bytes_a -= fmt->bits_per_field[i] / 8;
             bytes_b -= fmt->bits_per_field[i] / 8;
-            if ((tmp = (benz_uintXX_as_uint64(bytes_a, fmt->bits_per_field[i]) -
-                        benz_uintXX_as_uint64(bytes_b, fmt->bits_per_field[i]))) != 0) break;
+            if (benz_uintXX_as_uint64(bytes_a, fmt->bits_per_field[i]) !=
+                benz_uintXX_as_uint64(bytes_b, fmt->bits_per_field[i])) break;
         }
-        int res = i < BKEY_NR_FIELDS && tmp < 0;
+        int res = i < BKEY_NR_FIELDS &&
+          benz_uintXX_as_uint64(bytes_a, fmt->bits_per_field[i]) <
+          benz_uintXX_as_uint64(bytes_b, fmt->bits_per_field[i]);
 
-        if (res != ref_res) abort();
         return res;
     case KEY_FORMAT_CURRENT:
         if (a->p.inode != b->p.inode)
