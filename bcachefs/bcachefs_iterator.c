@@ -307,10 +307,10 @@ int _bkey_packed_less(const struct bkey *a, const struct bkey *b, const struct b
         b_local = benz_bch_parse_bkey_buffer(b, fmt, BKEY_NR_FIELDS);
         int ref_res = _Bcachefs_comp_bkey_lesser_than(&a_local, &b_local);
         ; // WTF??? This needs to be here or the var decl don't parse WTF???
-        enum bch_bkey_fields i;
-        int tmp;
+        int64_t tmp = 0;
         const uint8_t *bytes_a = (const void *)a;
         const uint8_t *bytes_b = (const void *)b;
+        enum bch_bkey_fields i;
 
         bytes_a += fmt->key_u64s * BCH_U64S_SIZE;
         bytes_b += fmt->key_u64s * BCH_U64S_SIZE;
@@ -588,7 +588,7 @@ const struct bch_val *Bcachefs_iter_next(const Bcachefs *this, Bcachefs_iterator
         }
     }
     ++iter->pos;
-    if (iter->pos >= iter->num_keys)
+    if (iter->pos < iter->num_keys)
     {
         bch_val = _Bcachefs_iter_next_bch_val(iter->keys[iter->pos], &iter->btree_node->format);
     }
