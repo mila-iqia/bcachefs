@@ -293,31 +293,53 @@ Bcachefs_dirent Bcachefs_find_dirent(Bcachefs *this, uint64_t parent_inode, uint
     return dirent;
 }
 
-int _bkey_packed_less(const struct bkey *a, const struct bkey *b, const struct bkey_format *fmt) {
-  enum bch_bkey_fields i;
-  assert(a->format == b->format);
+// a < b
+int _bkey_packed_less(const struct bkey *a, const struct bkey *b, const struct bkey_format *fmt)
+{
+    if (a->format != b->format) abort();
 
-  struct bkey_local_buffer a_local = {{0}}, b_local = {{0}};
-  a_local = benz_bch_parse_bkey_buffer(a, fmt, BKEY_NR_FIELDS);
-  b_local = benz_bch_parse_bkey_buffer(b, fmt, BKEY_NR_FIELDS);
-  int ref_res = _Bcachefs_comp_bkey_lesser_than(&a_local, &b_local);
+    switch (a->format)
+    {
+    case KEY_FORMAT_LOCAL_BTREE:
+        ; // WTF??? This needs to be here or the var decl don't parse WTF???
+        struct bkey_local_buffer a_local = {{0}}, b_local = {{0}};
+        a_local = benz_bch_parse_bkey_buffer(a, fmt, BKEY_NR_FIELDS);
+        b_local = benz_bch_parse_bkey_buffer(b, fmt, BKEY_NR_FIELDS);
+        int ref_res = _Bcachefs_comp_bkey_lesser_than(&a_local, &b_local);
+        ; // WTF??? This needs to be here or the var decl don't parse WTF???
+        enum bch_bkey_fields i;
+        int tmp;
+        const uint8_t *bytes_a = (const void *)a;
+        const uint8_t *bytes_b = (const void *)b;
 
-  const uint8_t *bytes_a = (const void *)a, *bytes_b = (const void *)b;
-  int tmp;
-  bytes_a += fmt->key_u64s * BCH_U64S_SIZE;
-  bytes_b += fmt->key_u64s * BCH_U64S_SIZE;
-  for (i = 0; i < BKEY_NR_FIELDS; ++i)
-  {
-      bytes_a -= fmt->bits_per_field[i] / 8;
-      bytes_b -= fmt->bits_per_field[i] / 8;
-      if ((tmp = (benz_uintXX_as_uint64(bytes_a, fmt->bits_per_field[i]) -
-                  benz_uintXX_as_uint64(bytes_b, fmt->bits_per_field[i]))) != 0) break;
-  }
-  int res = (i < BKEY_NR_FIELDS && tmp < 0);
+        bytes_a += fmt->key_u64s * BCH_U64S_SIZE;
+        bytes_b += fmt->key_u64s * BCH_U64S_SIZE;
+        for (i = 0; i < BKEY_NR_FIELDS; ++i)
+        {
+            bytes_a -= fmt->bits_per_field[i] / 8;
+            bytes_b -= fmt->bits_per_field[i] / 8;
+            if ((tmp = (benz_uintXX_as_uint64(bytes_a, fmt->bits_per_field[i]) -
+                        benz_uintXX_as_uint64(bytes_b, fmt->bits_per_field[i]))) != 0) break;
+        }
+        int res = i < BKEY_NR_FIELDS && tmp < 0;
 
-  assert(res == ref_res);
-
-  return res;
+        if (res != ref_res) abort();
+        return res;
+    case KEY_FORMAT_CURRENT:
+        if (a->p.inode != b->p.inode)
+          return a->p.inode < b->p.inode;
+        if (a->p.offset != b->p.offset)
+          return a->p.offset < b->p.offset;
+        if (a->p.snapshot != b->p.snapshot)
+          return a->p.snapshot < b->p.snapshot;
+        if (a->size != b->size)
+          return a->size < b->size;
+        if (a->version.hi != b->version.hi)
+          return a->version.hi < b->version.hi;
+        return a->version.lo < b->version.lo;
+    }
+    // If the format is not what we expect
+    abort();
 }
 
 void _Bcachefs_iter_build_bsets_cache(const Bcachefs *this, Bcachefs_iterator *iter)
@@ -377,7 +399,7 @@ void _Bcachefs_iter_build_bsets_cache(const Bcachefs *this, Bcachefs_iterator *i
             uint32_t pos = kptr - kcursors;
             if (last != NULL)
             {
-                while (_bkey_packed_less(*kptr, last, &iter->btree_node->format))
+                while (_bkey_packed_less(last, *kptr, &iter->btree_node->format))
                 {
                     *kptr = benz_bch_next_bkey(bsets[bpos], *kptr, KEY_TYPE_MAX);
                     if (*kptr == NULL) break;
