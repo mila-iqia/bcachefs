@@ -140,8 +140,9 @@ const struct bkey* _Bcachefs_find_bkey(const Bcachefs *this, Bcachefs_iterator *
     struct bkey_local_buffer bkey_value = {{0}};
     const struct bkey *bkey;
 
-    for (bkey = iter->keys[iter->pos]; iter->pos < iter->num_keys; bkey = iter->keys[++iter->pos])
+    for (int pos = 0; pos < iter->num_keys; ++pos)
     {
+        bkey = iter->keys[pos];
         switch ((int)iter->type)
         {
         case BTREE_ID_inodes:
@@ -183,6 +184,8 @@ const struct bkey* _Bcachefs_find_bkey(const Bcachefs *this, Bcachefs_iterator *
             return _Bcachefs_find_bkey(this, iter->next_it, reference);
         }
     }
+    iter->bkey = bkey;
+    return bkey;
 }
 
 Bcachefs_extent Bcachefs_find_extent(Bcachefs *this, uint64_t inode, uint64_t file_offset)
@@ -370,7 +373,7 @@ void _Bcachefs_iter_build_bsets_cache(const Bcachefs *this, Bcachefs_iterator *i
     uint32_t knum = 1024;
     uint32_t bpos;
     // These will be the pointer to the current bkey for all the sets
-    iter->keys = calloc(num, sizeof(struct bkey *)); // an array of 1024 pointers to start
+    iter->keys = calloc(knum, sizeof(struct bkey *)); // an array of 1024 pointers to start
     const struct bkey **kcursors = calloc(num, sizeof (struct bkey *));
     const struct bkey **kcursors_end = kcursors + (num - 1);
     // helper for iteration
@@ -394,9 +397,9 @@ void _Bcachefs_iter_build_bsets_cache(const Bcachefs *this, Bcachefs_iterator *i
             uint32_t pos = kptr - kcursors;
             if (last != NULL)
             {
-                while (_bkey_packed_less(last, *kptr, &iter->btree_node->format))
+                while (!_bkey_packed_less(last, *kptr, &iter->btree_node->format))
                 {
-                    *kptr = benz_bch_next_bkey(bsets[bpos], *kptr, KEY_TYPE_MAX);
+                    *kptr = benz_bch_next_bkey(bsets[pos], *kptr, KEY_TYPE_MAX);
                     if (*kptr == NULL) break;
                 }
             }
@@ -425,8 +428,10 @@ void _Bcachefs_iter_build_bsets_cache(const Bcachefs *this, Bcachefs_iterator *i
             // Grow the keys array if we reached the end
             if (next == iter->keys + knum)
             {
+                uint32_t cur_pos = next - iter->keys;
                 knum *= 2;
                 iter->keys = realloc(iter->keys, sizeof(struct bkey *) * knum);
+                next = iter->keys + cur_pos;
             }
         }
         best = NULL;
@@ -564,7 +569,6 @@ const struct bch_val *_Bcachefs_iter_next_bch_val(const struct bkey *bkey, const
 
 const struct bch_val *Bcachefs_iter_next(const Bcachefs *this, Bcachefs_iterator *iter)
 {
-    const struct bkey *bkey = NULL;
     const struct bch_val *bch_val = NULL;
 
     // Wind to current iterator
@@ -582,10 +586,10 @@ const struct bch_val *Bcachefs_iter_next(const Bcachefs *this, Bcachefs_iterator
             iter->next_it = NULL;
         }
     }
-    ++iter->pos;
     if (iter->pos < iter->num_keys)
     {
-        bch_val = _Bcachefs_iter_next_bch_val(iter->keys[iter->pos], &iter->btree_node->format);
+        iter->bkey = iter->keys[iter->pos++];
+        bch_val = _Bcachefs_iter_next_bch_val(iter->bkey, &iter->btree_node->format);
     }
     else
     {
@@ -597,7 +601,7 @@ const struct bch_val *Bcachefs_iter_next(const Bcachefs *this, Bcachefs_iterator
     case BTREE_ID_inodes:
     case BTREE_ID_dirents:
         iter->bch_val = bch_val;
-        if (bch_val && bkey->type == KEY_TYPE_btree_ptr_v2 &&
+        if (bch_val && iter->bkey->type == KEY_TYPE_btree_ptr_v2 &&
                 Bcachefs_next_iter(this, iter, (const struct bch_btree_ptr_v2*)bch_val))
         {
             return Bcachefs_iter_next(this, iter);
@@ -671,8 +675,8 @@ Bcachefs_extent Bcachefs_iter_make_extent(const Bcachefs *this, Bcachefs_iterato
         iter = iter->next_it;
     }
 
-    const struct bkey_local_buffer buffer = benz_bch_parse_bkey_buffer(iter->keys[iter->pos], &iter->btree_node->format, BKEY_NR_FIELDS);
-    const struct bkey_local bkey_local = benz_bch_parse_bkey(iter->keys[iter->pos], &buffer);
+    const struct bkey_local_buffer buffer = benz_bch_parse_bkey_buffer(iter->bkey, &iter->btree_node->format, BKEY_NR_FIELDS);
+    const struct bkey_local bkey_local = benz_bch_parse_bkey(iter->bkey, &buffer);
     const struct bkey *bkey = (const void*)&bkey_local;
     switch (bkey->type)
     {
@@ -689,7 +693,7 @@ Bcachefs_extent Bcachefs_iter_make_extent(const Bcachefs *this, Bcachefs_iterato
     {
         extent.offset = benz_bch_inline_data_offset(iter->btree_node, iter->bch_val,
                                                     benz_bch_get_extent_offset(iter->btree_ptr->start));
-        extent.size -= (uint64_t)((const uint8_t*)iter->bch_val - (const uint8_t*)iter->keys[iter->pos]);
+        extent.size -= (uint64_t)((const uint8_t*)iter->bch_val - (const uint8_t*)iter->bkey);
     }
     return extent;
 }
@@ -703,7 +707,7 @@ Bcachefs_inode Bcachefs_iter_make_inode(const Bcachefs *this, Bcachefs_iterator 
         iter = iter->next_it;
     }
 
-    const struct bkey *bkey = iter->keys[iter->pos];
+    const struct bkey *bkey = iter->bkey;
     const struct bkey_local_buffer buffer = benz_bch_parse_bkey_buffer(bkey, &iter->btree_node->format, BKEY_NR_FIELDS);
     const struct bkey_local bkey_local = benz_bch_parse_bkey(bkey, &buffer);
     const struct bch_inode *bch_inode = (const void*)iter->bch_val;
@@ -733,7 +737,7 @@ Bcachefs_dirent Bcachefs_iter_make_dirent(const Bcachefs *this, Bcachefs_iterato
         iter = iter->next_it;
     }
 
-    const struct bkey *bkey = iter->keys[iter->pos];
+    const struct bkey *bkey = iter->bkey;
     const struct bkey_local_buffer buffer = benz_bch_parse_bkey_buffer(bkey, &iter->btree_node->format, BKEY_NR_FIELDS);
     const struct bkey_local bkey_local = benz_bch_parse_bkey(bkey, &buffer);
     const struct bch_dirent *bch_dirent = (const void*)iter->bch_val;

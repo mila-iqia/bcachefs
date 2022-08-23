@@ -42,6 +42,7 @@ typedef struct Bcachefs_iterator {
     const struct jset_entry *jset_entry;        //! journal entry specifying the location of the btree root
     const struct bch_btree_ptr_v2 *btree_ptr;   //! current btree node location
     const struct bch_val *bch_val;              //! current value stored inside along side the key
+    const struct bkey *bkey;
     struct btree_node *btree_node;              //! current btree node
     struct Bcachefs_iterator *next_it;          //! pointer to the children btree node if iterating over nested Btrees
     const struct bkey **keys;
