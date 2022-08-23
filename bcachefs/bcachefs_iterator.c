@@ -184,8 +184,15 @@ const struct bkey* _Bcachefs_find_bkey(const Bcachefs *this, Bcachefs_iterator *
             return _Bcachefs_find_bkey(this, iter->next_it, reference);
         }
     }
-    iter->bkey = bkey;
-    return bkey;
+    else if (!memcmp(bkey_value.buffer, reference->buffer, sizeof(bkey_value.buffer)))
+    {
+        uint8_t key_u64s = bkey->format == KEY_FORMAT_LOCAL_BTREE ?
+          iter->btree_node->format.key_u64s : BKEY_U64s;
+        iter->bkey = bkey;
+        iter->bch_val = benz_bch_first_bch_val(bkey, key_u64s);
+        return bkey;
+    }
+    return NULL;
 }
 
 Bcachefs_extent Bcachefs_find_extent(Bcachefs *this, uint64_t inode, uint64_t file_offset)
