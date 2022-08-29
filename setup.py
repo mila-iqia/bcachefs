@@ -14,6 +14,13 @@ if "-coverage" in sys.argv:
 
     extra_compile_args = ["-coverage", "-g3", "-O0"]
     libraries = ["gcov"]
+elif "-debug" in sys.argv:
+    print("Compiling with debug flags")
+    sys.argv.remove("-debug")
+
+    extra_compile_args += ["-g3", "-O0", "-DDEBUG", "-UNDEBUG"]
+else:
+    extra_compile_args += ["-O3"]
 
 bcachefs_module = Extension(
     name="bcachefs.c_bcachefs",
@@ -32,7 +39,7 @@ bcachefs_module = Extension(
 
 setup(
     name="bcachefs",
-    version="0.1.11",
+    version="0.1.12",
     author="Satya Ortiz-Gagné",
     description="Fast Disk Image for HPC",
     long_description=open("README.rst").read(),
