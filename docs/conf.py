@@ -110,7 +110,7 @@ autodoc_inherit_docstrings = True
 project = "bcachefs"
 _full_version = "0.1.5"
 author = "Satya Ortiz-Gagné"
-copyright = "2021 Mila"
+copyright = "2022 Mila"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
