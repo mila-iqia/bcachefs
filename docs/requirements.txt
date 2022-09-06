@@ -4,3 +4,4 @@ sphinxcontrib-bibtex
 sphinx-serve
 breathe
 exhale
+jinja2<3.1

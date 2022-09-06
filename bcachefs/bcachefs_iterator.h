@@ -41,14 +41,13 @@ typedef struct Bcachefs_iterator {
     enum btree_id type;                         //! which btree are we iterating over
     const struct jset_entry *jset_entry;        //! journal entry specifying the location of the btree root
     const struct bch_btree_ptr_v2 *btree_ptr;   //! current btree node location
-    const struct bset *bset;                    //! current bset inside the btree
-    const void *bkey;                           //! current bkey inside the bset
     const struct bch_val *bch_val;              //! current value stored inside along side the key
+    const struct bkey *bkey;
     struct btree_node *btree_node;              //! current btree node
     struct Bcachefs_iterator *next_it;          //! pointer to the children btree node if iterating over nested Btrees
-    struct bset **_bsets;                       //! bsets pointers list inside the btree
-    const struct bset **_bset;                  //! current bset in _bsets
-    const struct bset **_bsets_end;             //! bsets list end pointer
+    const struct bkey **keys;
+    uint32_t num_keys;
+    uint32_t pos;
 } Bcachefs_iterator;
 #define BCACHEFS_ITERATOR_CLEAN (Bcachefs_iterator){.type = BTREE_ID_NR}
 

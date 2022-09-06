@@ -726,7 +726,7 @@ class Bcachefs(ZipFileLikeMixin):
             if ent.parent_inode == dirent.inode:
                 yield ent
             elif ent.parent_inode > dirent.inode:
-                iter.next_bset()
+                break
 
     def _walk(self, top: str, dirent: DirEnt):
         ls = set(self.scandir(dirent))
@@ -973,9 +973,6 @@ class BcachefsIter:
         if item is None:
             raise StopIteration
         return item
-
-    def next_bset(self):
-        return self._iter.next_bset()
 
 
 class BcachefsIterExtent(BcachefsIter):

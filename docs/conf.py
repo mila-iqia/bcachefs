@@ -107,10 +107,10 @@ breathe_projects = {"bcachefs": doxygen_out_xml}
 autodoc_inherit_docstrings = True
 
 # General information about the project.
-project = u"bcachefs"
+project = "bcachefs"
 _full_version = "0.1.5"
-author = u"Satya Ortiz-Gagné"
-copyright = u"2021 Mila"
+author = "Satya Ortiz-Gagné"
+copyright = "2022 Mila"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -233,8 +233,8 @@ latex_documents = [
     (
         master_doc,
         "bcachefs.tex",
-        u"bcachefs Documentation",
-        u"authors",
+        "bcachefs Documentation",
+        "authors",
         "manual",
     ),
 ]

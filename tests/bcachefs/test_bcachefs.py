@@ -87,7 +87,7 @@ def test___iter__(bchfs: bch.Bcachefs):
             "subdir",
         ]
     elif bchfs.filename.endswith(MANY):
-        assert len(set(bchfs)) == (
+        assert len(list(bchfs)) == (
             # hardlinks + dirs  + 0 (original file) + lost+found
             1500 * 25
             + 25
@@ -123,7 +123,7 @@ def test_read(bchfs: bch.Bcachefs):
         f0 = bchfs.read("0")
         assert f0 == b"test content\n"
 
-        for ent in set(bchfs):
+        for ent in bchfs:
             if ent.is_dir:
                 continue
             assert bchfs.read(ent) == f0
@@ -143,7 +143,7 @@ def test_readinto(bchfs: bch.Bcachefs):
         f0 = bchfs.read("0")
         assert f0 == b"test content\n"
 
-        for ent in set(bchfs):
+        for ent in bchfs:
             if ent.is_dir:
                 continue
             _len = bchfs.readinto(ent.inode, buffer)
@@ -193,7 +193,7 @@ def test_cursor___iter__(bchfs: bch.Bcachefs, dir_cursor: bch.Cursor):
     )
     assert sorted(
         [ent for ent in dir_cursor.cd("/")], key=lambda ent: ent.inode
-    ) == sorted(set(bchfs), key=lambda ent: ent.inode)
+    ) == sorted(bchfs, key=lambda ent: ent.inode)
 
 
 @pytest.mark.images_only([MINI])

@@ -293,29 +293,11 @@ static PyObject *PyBcachefs_iterator_next(PyBcachefs_iterator *self)
 }
 
 /**
- * @brief
- */
-
-static PyObject *PyBcachefs_iterator_next_bset(PyBcachefs_iterator *self)
-{
-    Bcachefs_iterator *iter = self->_iter;
-    while (iter->next_it)
-    {
-        iter = iter->next_it;
-    }
-    iter->bkey = NULL;
-    iter->bch_val = NULL;
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-
-/**
  * Table of methods.
  */
 
 static PyMethodDef PyBcachefs_iterator_methods[] = {
     {"next", (PyCFunction)PyBcachefs_iterator_next, METH_NOARGS, "Iterate to next item"},
-    {"next_bset", (PyCFunction)PyBcachefs_iterator_next_bset, METH_NOARGS, "Iterate to next bset"},
     {NULL, NULL, 0, NULL}  /* Sentinel */
 };
 
