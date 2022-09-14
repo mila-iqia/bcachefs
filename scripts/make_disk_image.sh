@@ -50,8 +50,11 @@ fi
 pushd `dirname "${BASH_SOURCE[0]}"` >/dev/null
 
 chmod +x bcachefs-tools.sif
-# Create disk image
-NAME="${NAME}" SIZE=${SIZE} ./create_img.sh
+if [[ ${SIZE} != -1 ]]
+then
+	# Create disk image
+	NAME="${NAME}" SIZE=${SIZE} ./create_img.sh
+fi
 # Mount disk image
 NAME="${NAME}" \
 	CONTENT_SRC=${CONTENT_SRC}/ \
