@@ -135,12 +135,13 @@ int _Bcachefs_comp_bkey_lesseq_than(struct bkey_local_buffer *buffer, struct bke
     return field == BKEY_NR_FIELDS || buffer->buffer[field] < reference->buffer[field];
 }
 
-const struct bkey* _Bcachefs_find_bkey(const Bcachefs *this, Bcachefs_iterator *iter, struct bkey_local_buffer *reference)
+const struct bkey* _Bcachefs_find_bkey(const Bcachefs *this, Bcachefs_iterator *iter, struct bkey_local_buffer *reference, int start_pos)
 {
     struct bkey_local_buffer bkey_value = {{0}};
     const struct bkey *bkey;
 
-    for (int pos = 0; pos < iter->num_keys; ++pos)
+    int pos = start_pos;
+    for (; pos < iter->num_keys; ++pos)
     {
         bkey = iter->keys[pos];
         switch ((int)iter->type)
@@ -158,7 +159,7 @@ const struct bkey* _Bcachefs_find_bkey(const Bcachefs *this, Bcachefs_iterator *
         if (!_Bcachefs_comp_bkey_lesser_than(&bkey_value, reference)) break;
     }
 
-    if (iter->pos == iter->num_keys) return NULL;
+    if (pos == iter->num_keys) return NULL;
 
     uint8_t key_u64s = bkey->format == KEY_FORMAT_LOCAL_BTREE ?
       iter->btree_node->format.key_u64s : BKEY_U64s;
@@ -168,10 +169,16 @@ const struct bkey* _Bcachefs_find_bkey(const Bcachefs *this, Bcachefs_iterator *
     {
         uint8_t key_u64s = bkey->format == KEY_FORMAT_LOCAL_BTREE ?
           iter->btree_node->format.key_u64s : BKEY_U64s;
+        iter->bkey = bkey;
         iter->bch_val = benz_bch_first_bch_val(bkey, key_u64s);
         const struct bch_btree_ptr_v2* btree_ptr = (const void*)iter->bch_val;
         bkey_value.buffer[BKEY_FIELD_INODE] = btree_ptr->min_key.inode;
         bkey_value.buffer[BKEY_FIELD_OFFSET] = btree_ptr->min_key.offset;
+        if (bkey_value.buffer[BKEY_FIELD_OFFSET])
+        {
+            // for some reason min_key can contain inode == ref inode and have a offset == ref offset + 1
+            bkey_value.buffer[BKEY_FIELD_OFFSET] -= 1;
+        }
         memset(&bkey_value.buffer[BKEY_FIELD_OFFSET + 1], 0, (BKEY_FIELD_SIZE - BKEY_FIELD_OFFSET) * sizeof(*bkey_value.buffer));
         if (iter->next_it && Bcachefs_iter_fini(this, iter->next_it))
         {
@@ -181,7 +188,18 @@ const struct bkey* _Bcachefs_find_bkey(const Bcachefs *this, Bcachefs_iterator *
         if (_Bcachefs_comp_bkey_lesseq_than(&bkey_value, reference) && !iter->next_it &&
             Bcachefs_next_iter(this, iter, btree_ptr))
         {
-            return _Bcachefs_find_bkey(this, iter->next_it, reference);
+            const struct bkey* bkey = _Bcachefs_find_bkey(this, iter->next_it, reference, 0);
+            if (bkey)
+            {
+                return bkey;
+            }
+	    // some bkeys sequence (like extents) could be spread over multiple
+	    // btrees. if the precedent btree doesn't contain the desired bkey,
+	    // continue to search from the current btree.
+            else
+            {
+                return _Bcachefs_find_bkey(this, iter, reference, ++pos);
+            }
         }
     }
     else if (!memcmp(bkey_value.buffer, reference->buffer, sizeof(bkey_value.buffer)))
@@ -211,7 +229,7 @@ Bcachefs_extent Bcachefs_find_extent(Bcachefs *this, uint64_t inode, uint64_t fi
         return extent;
     }
     Bcachefs_iterator *iter = this->_iter;
-    const struct bkey *bkey = _Bcachefs_find_bkey(this, iter, &reference);
+    const struct bkey *bkey = _Bcachefs_find_bkey(this, iter, &reference, 0);
     if (bkey)
     {
         switch (bkey->type)
@@ -244,7 +262,7 @@ Bcachefs_inode Bcachefs_find_inode(Bcachefs *this, uint64_t inode)
         return stats;
     }
     Bcachefs_iterator *iter = this->_iter;
-    const struct bkey *bkey = _Bcachefs_find_bkey(this, iter, &reference);
+    const struct bkey *bkey = _Bcachefs_find_bkey(this, iter, &reference, 0);
     if (bkey)
     {
         switch (bkey->type)
@@ -287,7 +305,7 @@ Bcachefs_dirent Bcachefs_find_dirent(Bcachefs *this, uint64_t parent_inode, uint
         return dirent;
     }
     Bcachefs_iterator *iter = this->_iter;
-    const struct bkey *bkey = _Bcachefs_find_bkey(this, iter, &reference);
+    const struct bkey *bkey = _Bcachefs_find_bkey(this, iter, &reference, 0);
     if (bkey)
     {
         switch (bkey->type)
