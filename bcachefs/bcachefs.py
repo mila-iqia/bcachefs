@@ -126,7 +126,7 @@ class _BcachefsFileBinary(io.BufferedIOBase):
     """
 
     def __init__(self, name, extents, file, inode, size):
-        self.name = file
+        self.name = name
         self._inode = inode
         self._size = size
 
@@ -238,6 +238,7 @@ class _BcachefsFileBinary(io.BufferedIOBase):
         # finished reading the file
         if self._pos > self._size:
             diff = self._pos - self._size
+            self._pos = self._size
 
             self._extent_pos += 1
             self._extent_read = 0
