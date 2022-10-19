@@ -64,7 +64,14 @@ def test_file_readall():
 
 
 @pytest.mark.parametrize("size", [1, 2, 4, 8, 16, 32, 1024, 2048])
-def test_file_read1(size):
+@pytest.mark.parametrize(
+    "read_func",
+    [
+        bch.bcachefs._BcachefsFileBinary.read,
+        bch.bcachefs._BcachefsFileBinary.read1,
+    ],
+)
+def test_file_read(size, read_func):
     image = filepath(MINI)
     assert os.path.exists(image)
 
@@ -74,14 +81,17 @@ def test_file_read1(size):
             sha = sha256()
 
             k = 0
-            data = saved.read1(size)
+            data = read_func(saved, size)
             while data:
                 all_data.append(data)
                 k += 1
                 sha.update(data)
-                data = saved.read1(size)
+                data = read_func(saved, size)
 
             bcachefs_hash = sha.digest()
+            assert (
+                sum(len(d) for d in all_data) == saved.tell()
+            ), "File tell() should match the size of data"
 
     all_data = b"".join(all_data)
 
