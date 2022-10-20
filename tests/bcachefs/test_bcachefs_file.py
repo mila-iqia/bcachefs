@@ -128,8 +128,9 @@ def test_file_seek(offset):
     with bch.mount(image) as fs:
         with fs.open(FILE) as saved:
             saved.seek(offset)
-            data = saved.read(offset)
-            assert data == original_data[offset : offset * 2]
+            data = saved.read(2048)
+            assert saved.tell() == offset + 2048
+            assert data == original_data[offset : offset + 2048]
 
 
 def test_read_image():
