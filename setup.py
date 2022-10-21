@@ -39,7 +39,7 @@ bcachefs_module = Extension(
 
 setup(
     name="bcachefs",
-    version="0.1.14",
+    version="0.1.15",
     author="Satya Ortiz-Gagné",
     description="Fast Disk Image for HPC",
     long_description=open("README.rst").read(),

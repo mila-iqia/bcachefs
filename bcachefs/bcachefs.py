@@ -221,11 +221,16 @@ class _BcachefsFileBinary(io.BufferedIOBase):
         if self._extent_pos >= len(self._extents):
             return 0
 
+        if not isinstance(b, memoryview):
+            b = memoryview(b)
+
         # continue reading the current extent
         extent = self._extents[self._extent_pos]
 
         self._file.seek(extent.offset + self._extent_read)
-        read = self._file.readinto(b)
+        read = self._file.readinto(
+            b[: min(len(b), extent.size - self._extent_read)]
+        )
 
         self._extent_read += read
         self._pos += read
