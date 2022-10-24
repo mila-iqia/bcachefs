@@ -4,4 +4,5 @@ exclude main.c
 
 # But exclude binaries, installed headers and other junk:
 prune *.egg-info/
+prune *venv*/
 global-exclude __pycache__ *.py[cod] *.exe *.so *.o .DS_Store
