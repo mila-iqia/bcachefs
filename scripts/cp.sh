@@ -24,7 +24,7 @@ if [ ! ${_ERR} -eq 0 ]
 then
 	echo
 	echo "Checksum verification failed. To delete corrupted files and retry the copy, run the following commands:"
-	echo "\\tpushd '${PWD}' && UNMOUNT=${UNMOUNT} RM_FAILED=1 ./cp.sh . ; popd"
+	echo -e "\\tpushd '${PWD}' && UNMOUNT=${UNMOUNT} RM_FAILED=1 ./cp.sh . ; popd"
 	echo
 fi
 exit ${_ERR}
