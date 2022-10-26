@@ -68,7 +68,7 @@ echo
 echo "============================================"
 echo
 echo "Run the following commands in another shell:"
-echo -e "\\tpushd '${PWD}' && UNMOUNT=1 ./cp.sh . ; popd"
+echo -e "\\tpushd '${PWD}' && UNMOUNT=1 $([ ${RM_FAILED} == 1 ] && echo "RM_FAILED=1 ")./cp.sh . ; popd"
 echo
 echo "============================================"
 echo
