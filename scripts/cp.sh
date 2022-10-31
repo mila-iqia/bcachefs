@@ -6,7 +6,12 @@ then
 	UNMOUNT=0
 fi
 
-if [ ! -z "${RM_FAILED}" ]
+if [ -z "${RM_FAILED}" ]
+then
+	RM_FAILED=0
+fi
+
+if [ ${RM_FAILED} -eq 1 ]
 then
 	RM_FAILED=${RM_FAILED} singularity exec instance://bcachefs /bch/scripts/sif_rm_checksum_fail.sh && \
 		singularity exec instance://bcachefs mv /bch/tmp/disk.img.md5sums.checksums /bch/tmp/disk.img.md5sums.checksums.failed
